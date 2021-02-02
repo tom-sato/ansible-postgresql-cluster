@@ -1,0 +1,26 @@
+resource {{ drbd_resource_name }} {
+	protocol C;
+	device {{ drbd_device }};
+	disk {{ drbd_disk }};
+	meta-disk internal;
+	disk {
+		{% if drbd_version is version('9.0', '<') %}
+		fencing resource-only;
+		{% endif %}
+		resync-rate 33M;
+	}
+	handlers {
+		fence-peer /usr/lib/drbd/crm-fence-peer.sh;
+		after-resync-target /usr/lib/drbd/crm-unfence-peer.sh;
+	}
+	{% if drbd_version is version('9.0', '>=') %}
+	net {
+		fencing resource-only;
+	}
+	{% endif %}
+	{% for item in groups.all %}
+	on {{ hostvars[item].ansible_fqdn }} {
+		address {{ hostvars[item]['ansible_' + public_interface].ipv4.address }}:{{ drbd_port }};
+	}
+	{% endfor %}
+}

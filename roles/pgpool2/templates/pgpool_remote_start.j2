@@ -1,0 +1,23 @@
+#! /bin/bash
+exec > >(logger -i -p {{ pgpool2_syslog_facility }}.notice -t $(basename $0)) 2>&1
+set -e -x
+recovery_hostname=$1
+recovery_data_directory=$2
+node_count=$(pcp_node_count -U {{ pgpool2_pcp_username }} -h {{ pgpool2_delegate_hostname }} -p {{ pgpool2_pcp_port }} -w)
+for (( node_id=0; node_id < $node_count; node_id++ )); do
+	node_info=($(pcp_node_info -U {{ pgpool2_pcp_username }} -h {{ pgpool2_delegate_hostname }} -p {{ pgpool2_pcp_port }} -w $node_id))
+	if [ ${node_info[0]} == $recovery_hostname ]; then
+		recovery_port=${node_info[1]}
+		break
+	fi
+done
+echo "server starting..."
+if /usr/pgsql-{{ postgresql_version }}/bin/pg_isready -h $recovery_hostname -p $recovery_port; then
+	echo "server is running, start skipped"
+	exit 0
+fi
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $recovery_hostname <<-EOF
+	set -e -x
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D $recovery_data_directory -l /dev/null
+EOF
+echo "server successfully started"

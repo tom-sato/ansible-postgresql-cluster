@@ -1,0 +1,258 @@
+---
+- fail:
+    msg: PostgreSQL version earlier than 9.5 not supported
+  when: postgresql_version is version('9.5', '<')
+- yum:
+    name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}/pgdg-redhat-repo-latest.noarch.rpm
+    state: present
+- block:
+    - command: dnf module list --disabled postgresql
+      args:
+        warn: no
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: dnf -y module disable postgresql
+      args:
+        warn: no
+      when: _command.rc != 0
+  when: ansible_distribution_major_version is version('8', '>=')
+- yum:
+    name: postgresql{{ postgresql_version | regex_replace('\.') }}-server
+    state: latest
+- file:
+    path: /etc/systemd/system/postgresql-{{ postgresql_version }}.service.d
+    state: directory
+- blockinfile:
+    path: /etc/systemd/system/postgresql-{{ postgresql_version }}.service.d/override.conf
+    block: |
+      [Service]
+      Environment=PGDATA={{ postgresql_data_directory }}
+    mode: 0644
+    create: yes
+  register: _blockinfile
+- command: systemctl daemon-reload
+  when: _blockinfile.changed
+- blockinfile:
+    path: /etc/rsyslog.d/postgresql-{{ postgresql_version }}.conf
+    block: |
+      {{ postgresql_syslog_facility }}.* action(type="omfile" file="{{ postgresql_syslog_file }}" fileOwner="postgres" fileGroup="postgres")
+      & stop
+    mode: 0644
+    create: yes
+  register: _blockinfile
+- service:
+    name: rsyslog
+    state: restarted
+  when: _blockinfile.changed
+- lineinfile:
+    path: /etc/logrotate.d/syslog
+    insertbefore: ^{
+    line: '{{ postgresql_syslog_file }}'
+- lineinfile:
+    path: /var/lib/pgsql/.pgpass
+    line: '*:{{ postgresql_port }}:*:postgres:{{ postgresql_password }}'
+    owner: postgres
+    group: postgres
+    mode: 0600
+    create: yes
+- block:
+  - file:
+      path: '{{ item }}'
+      state: directory
+      owner: postgres
+      group: postgres
+      mode: 0700
+    when: item != '/'
+    with_items:
+      - '{{ postgresql_data_directory | dirname }}'
+      - '{{ postgresql_data_directory }}'
+  when: ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage != 'initdb'
+- stat:
+    path: '{{ postgresql_data_directory }}/PG_VERSION'
+  register: _stat_pg_version
+- block:
+    - block:
+        - block:
+            - tempfile:
+              register: _tempfile
+            - lineinfile:
+                path: '{{ _tempfile.path }}'
+                line: '{{ postgresql_password }}'
+                owner: postgres
+                group: postgres
+                create: yes
+          when: postgresql_password != ''
+        - command: >
+            /usr/pgsql-{{ postgresql_version }}/bin/initdb -A {{ postgresql_auth_method }}
+            {% if postgresql_password != '' %}
+            --pwfile={{ _tempfile.path }}
+            {% endif %}
+            {{ postgresql_extra_initdb_options }} {{ postgresql_data_directory }}
+          become_user: postgres
+      always:
+        - file:
+            path: '{{ _tempfile.path }}'
+            state: absent
+          when: postgresql_password != ''
+      when: not _stat_pg_version.stat.exists
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_controldata {{ postgresql_data_directory }}
+      environment:
+        LANG: C
+      register: _command
+      changed_when: false
+    - blockinfile:
+        path: '{{ postgresql_data_directory }}/postgresql.conf'
+        block: |
+          listen_addresses = '*'
+          port = {{ postgresql_port }}
+          {% if postgresql_version is version('9.6', '>=') %}
+          wal_level = replica
+          {% else %}
+          wal_level = hot_standby
+          {% endif %}
+          {% if postgresql_use_rewind and _command.stdout is regex('Data page checksum version:\s*0') %}
+          wal_log_hints = on
+          {% endif %}
+          max_wal_senders = {{ [10, groups.all | length + 1] | max }}
+          {% if postgresql_version is version('13', '>=') %}
+          wal_keep_size = 80MB
+          {% else %}
+          wal_keep_segments = 5
+          {% endif %}
+          {% if postgresql_use_replication_slot %}
+          max_replication_slots = {{ [10, groups.all | length + 1] | max }}
+          {% endif %}
+          hot_standby = on
+          hot_standby_feedback = on
+          log_destination = 'syslog'
+          logging_collector = off
+          syslog_facility = '{{ postgresql_syslog_facility }}'
+          log_line_prefix = ''
+          {{ postgresql_extra_config_parameters }}
+      notify: postgresql_restart
+    - blockinfile:
+        path: '{{ postgresql_data_directory }}/pg_hba.conf'
+        block: |
+          {{ postgresql_extra_hba_records }}
+      notify: postgresql_restart
+    - service:
+        name: postgresql-{{ postgresql_version }}
+        state: started
+      when: postgresql_control_as_service
+    - block:
+        - stat:
+            path: '{{ postgresql_data_directory }}/postmaster.pid'
+          register: _stat
+        - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D {{ postgresql_data_directory }}
+          become_user: postgres
+          when: not _stat.stat.exists
+      when: not postgresql_control_as_service
+    - command: psql -c "SELECT 'found' WHERE pg_is_in_recovery()" -p {{ postgresql_port }}
+      become_user: postgres
+      register: _command
+      changed_when: false
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl promote -w -D {{ postgresql_data_directory }}
+      become_user: postgres
+      when: _command.stdout is search('found')
+  when: ansible_hostname == postgresql_primary_hostname
+- block:
+    - set_fact:
+        _application_name: "{{ ansible_hostname | regex_replace('-', '_') }}"
+    - block:
+        - service:
+            name: postgresql-{{ postgresql_version }}
+            state: started
+          when: postgresql_control_as_service
+        - block:
+            - stat:
+                path: '{{ postgresql_data_directory }}/postmaster.pid'
+              register: _stat_postmaster_pid
+            - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D {{ postgresql_data_directory }}
+              become_user: postgres
+              when: not _stat_postmaster_pid.stat.exists
+          when: not postgresql_control_as_service
+        - block:
+            - command: psql -c "SELECT 'found' FROM pg_stat_replication WHERE application_name = '{{ _application_name }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+              become_user: postgres
+              register: _command
+              changed_when: false
+            - block:
+                - service:
+                    name: postgresql-{{ postgresql_version }}
+                    state: stopped
+                  when: postgresql_control_as_service
+                - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl stop -D {{ postgresql_data_directory }} -m fast
+                  become_user: postgres
+                  when: not postgresql_control_as_service
+                - shell: rm -f -r {{ postgresql_data_directory }}/*
+                  args:
+                    warn: no
+              when: _command.stdout is not search('found')
+          when: postgresql_setup_stage != 'basebackup'
+      when: _stat_pg_version.stat.exists
+    - command: pg_basebackup -D {{ postgresql_data_directory }} -X stream -c fast -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+      become_user: postgres
+      register: _command_pg_basebackup
+      when: not _stat_pg_version.stat.exists or (_command.stdout is defined and _command.stdout is not search('found'))
+    - block:
+        - blockinfile:
+            path: "{{ postgresql_data_directory }}/{{ (postgresql_version is version('12', '>=')) | ternary('postgresql.auto.conf', 'recovery.conf') }}"
+            block: |
+              recovery_target_timeline = 'latest'
+              {% if postgresql_version is version('12', '<') %}
+              standby_mode = on
+              {% endif %}
+              primary_conninfo = 'host={{ postgresql_primary_hostname }} port={{ postgresql_port }} application_name={{ _application_name }}'
+              {% if postgresql_use_replication_slot %}
+              primary_slot_name = '{{ _application_name }}'
+              {% endif %}
+              {{ postgresql_extra_recovery_config_parameters }}
+            owner: postgres
+            group: postgres
+            mode: 0600
+            create: yes
+          notify: postgresql_restart
+        - block:
+            - stat:
+                path: '{{ postgresql_data_directory }}/standby.signal'
+              register: _stat
+            - copy:
+                content: ''
+                dest: '{{ postgresql_data_directory }}/standby.signal'
+                owner: postgres
+                group: postgres
+              notify: postgresql_restart
+              when: not _stat.stat.exists
+          when: postgresql_version is version('12', '>=')
+        - block:
+            - command: psql -c "SELECT 'found' FROM pg_replication_slots WHERE slot_name = '{{ _application_name }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+              become_user: postgres
+              register: _command_psql
+              changed_when: false
+            - command: psql -c "SELECT pg_create_physical_replication_slot('{{ _application_name }}')" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+              become_user: postgres
+              when: _command_psql.stdout is not search('found')
+          when: postgresql_use_replication_slot
+      when: postgresql_setup_stage != 'basebackup'
+    - service:
+        name: postgresql-{{ postgresql_version }}
+        state: started
+      when: postgresql_control_as_service
+    - block:
+        - stat:
+            path: '{{ postgresql_data_directory }}/postmaster.pid'
+          register: _stat_postmaster_pid
+        - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D {{ postgresql_data_directory }}
+          become_user: postgres
+          when: not _stat_postmaster_pid.stat.exists
+      when: not postgresql_control_as_service
+  when:
+    - ansible_hostname != postgresql_primary_hostname
+    - postgresql_setup_stage != 'initdb'
+- service:
+    name: postgresql-{{ postgresql_version }}
+    enabled: yes
+  when:
+    - ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage != 'initdb'
+    - postgresql_control_as_service

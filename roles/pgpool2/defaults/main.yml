@@ -1,0 +1,18 @@
+---
+pgpool2_version: 4.2
+pgpool2_syslog_facility: LOCAL1
+pgpool2_syslog_file: /var/log/pgpool
+pgpool2_delegate_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
+pgpool2_delegate_hostname: vip-1
+pgpool2_pcp_port: 9898
+pgpool2_pcp_username: postgres
+pgpool2_pcp_password: postgres
+pgpool2_backend_clustering_mode: streaming_replication
+pgpool2_port: 9999
+pgpool2_trusted_servers: '{{ ansible_default_ipv4.gateway }}'
+pgpool2_wd_port: 9000
+pgpool2_heartbeat_port: 9694
+pgpool2_extra_config_parameters: ''
+pgpool2_extra_hba_records: |
+  host all all {{ lookup('vars', 'ansible_' + public_interface).ipv4.network }}/24 {{ postgresql_auth_method }}
+pgpool2_encryption_key: postgres

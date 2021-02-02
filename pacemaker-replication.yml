@@ -1,0 +1,16 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    postgresql_version: 11
+    postgresql_extra_config_parameters: |
+      restart_after_crash = off
+    postgresql_control_as_service: no
+    postgresql_use_replication_slot: no
+  roles:
+    - common
+    - hosts
+    - locale
+    - postgresql
+    - pacemaker
+    - pacemaker-replication

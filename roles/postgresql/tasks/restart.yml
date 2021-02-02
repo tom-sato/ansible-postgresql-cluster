@@ -1,0 +1,13 @@
+---
+- service:
+    name: postgresql-{{ postgresql_version }}
+    state: restarted
+  when: postgresql_control_as_service
+- block:
+    - stat:
+        path: '{{ postgresql_data_directory }}/postmaster.pid'
+      register: _stat
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl restart -w -D {{ postgresql_data_directory }}
+      become_user: postgres
+      when: _stat.stat.exists
+  when: not postgresql_control_as_service

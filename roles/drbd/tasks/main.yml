@@ -1,0 +1,80 @@
+---
+- fail:
+    msg: more than 2 nodes not supported
+  when: (groups.all | length) > 2
+- uri:
+    url: https://elrepo.org/linux/elrepo/el{{ ansible_distribution_major_version }}/{{ ansible_architecture }}/RPMS/
+    return_content: yes
+  register: _uri
+  changed_when: false
+- yum:
+    name: "{{ _uri.url }}/{{ _uri.content | regex_findall('elrepo-release-.*?\\.rpm', multiline=true) | sort | last }}"
+    state: present
+- yum:
+    name:
+      - kmod-drbd{{ drbd_version | regex_replace('\.') }}
+      - drbd{{ drbd_version | regex_replace('\.') }}-utils
+    state: latest
+- stat:
+    path: '{{ drbd_disk }}'
+  register: _stat
+- parted:
+    device: "{{ drbd_disk | regex_replace('\\d+$') }}"
+    number: "{{ drbd_disk | regex_search('\\d+$') }}"
+    state: present
+    label: gpt
+  when: not _stat.stat.exists
+- template:
+    src: resource.res.j2
+    dest: /etc/drbd.d/{{ drbd_resource_name }}.res
+    mode: 0644
+    lstrip_blocks: yes
+- command: drbdadm dstate {{ drbd_resource_name }}
+  register: _command
+  changed_when: false
+  failed_when: false
+- command: drbdadm create-md {{ drbd_resource_name }}
+  when: _command.rc != 0
+- command: ls -Z /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
+  register: _command
+  changed_when: false
+- command: chcon -t drbd_lock_t /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
+  when: _command.stdout is not search('drbd_lock_t')
+- service:
+    name: drbd
+    state: started
+    enabled: yes
+  when: drbd_control_as_service
+- block:
+    - command: drbdadm cstate {{ drbd_resource_name }}
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: drbdadm up {{ drbd_resource_name }}
+      when: _command.rc != 0
+  when: not drbd_control_as_service
+- file:
+    path: '{{ drbd_mount_directory }}'
+    state: directory
+- block:
+    - command: drbdadm dstate {{ drbd_resource_name }}
+      register: _command
+      changed_when: false
+    - block:
+        - command: drbdadm primary --force {{ drbd_resource_name }}
+        - command: drbdadm dstate {{ drbd_resource_name }}
+          register: _command_retry
+          until: _command_retry.stdout == 'UpToDate/UpToDate'
+          retries: 30
+          delay: 10
+          changed_when: false
+      when: _command.stdout != 'UpToDate/UpToDate'
+    - filesystem:
+        dev: '{{ drbd_device }}'
+        fstype: '{{ drbd_fstype }}'
+    - mount:
+        path: '{{ drbd_mount_directory }}'
+        src: '{{ drbd_device }}'
+        state: mounted
+        fstype: '{{ drbd_fstype }}'
+  when: ansible_hostname == drbd_primary_hostname

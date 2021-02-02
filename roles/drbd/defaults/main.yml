@@ -1,0 +1,10 @@
+---
+drbd_version: 9.0
+drbd_disk: /dev/sdb1
+drbd_resource_name: my_resource
+drbd_device: /dev/drbd0
+drbd_port: 7789
+drbd_control_as_service: no
+drbd_mount_directory: /mnt/mirror
+drbd_fstype: xfs
+drbd_primary_hostname: '{{ groups.all[0] }}'

@@ -1,0 +1,7 @@
+---
+pacemaker_password: hacluster
+pacemaker_cluster_name: my_cluster
+pacemaker_migration_threshold: 2
+pacemaker_failure_timeout: 60s
+pacemaker_no_quorum_policy: "{{ (groups.all | length >= 3) | ternary('stop', 'ignore') }}"
+pacemaker_use_softdog: no

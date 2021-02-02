@@ -1,0 +1,30 @@
+#! /bin/bash
+exec > >(logger -i -p {{ pgpool2_syslog_facility }}.notice -t $(basename $0)) 2>&1
+set -e -x
+main_data_directory=$1
+recovery_hostname=$2
+recovery_data_directory=$3
+main_port=$4
+main_hostname=$(hostname -s)
+lsn_name={{ (postgresql_version is version('10', '>=')) | ternary('lsn', 'location') }}
+recovery_slot_name=${recovery_hostname/-/_}
+echo "recovery 2nd stage starting..."
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $recovery_hostname <<-EOF
+	set -e -x
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D $recovery_data_directory -l /dev/null
+	i=1
+	while :; do
+		result=\$(psql -c "SELECT 'no_delay' FROM pg_stat_replication WHERE sent_$lsn_name = pg_current_wal_$lsn_name() AND application_name = '$recovery_slot_name'" -h $main_hostname -p $main_port)
+		if echo \$result | grep no_delay; then
+			break
+		fi
+		((i++))
+		if [ \$i -gt 30 ]; then
+			echo "could not catch up with primary, recovery 2nd stage failed"
+			exit 1
+		fi
+		sleep 10
+	done
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl promote -w -D $recovery_data_directory
+EOF
+echo "recovery 2nd stage successfully completed"

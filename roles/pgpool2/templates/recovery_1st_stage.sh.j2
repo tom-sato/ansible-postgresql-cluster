@@ -1,0 +1,48 @@
+#! /bin/bash
+exec > >(logger -i -p {{ pgpool2_syslog_facility }}.notice -t $(basename $0)) 2>&1
+set -e -x
+main_data_directory=$1
+recovery_hostname=$2
+recovery_data_directory=$3
+main_port=$4
+main_hostname=$(hostname -s)
+recovery_config_filename={{ (postgresql_version is version('12', '>=')) | ternary('postgresql.auto.conf', 'recovery.conf') }}
+recovery_slot_name=${recovery_hostname/-/_}
+echo "recovery 1st stage starting..."
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $recovery_hostname <<-EOF
+	set -e -x
+	{% if postgresql_use_rewind %}
+	if [ -f $recovery_data_directory/PG_VERSION ] && ! /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl status -D $recovery_data_directory; then
+		/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D $recovery_data_directory -l /dev/null || :
+	fi
+	{% endif %}
+	if /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl status -D $recovery_data_directory; then
+		/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl stop -D $recovery_data_directory -m fast
+	fi
+	do_basebackup=true
+	{% if postgresql_use_rewind %}
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_rewind -D $recovery_data_directory --source-server="host=$main_hostname port=$main_port" && do_basebackup=false
+	{% endif %}
+	if \$do_basebackup; then
+		rm -f -r $recovery_data_directory/*
+		pg_basebackup -D $recovery_data_directory -X stream -c fast -h $main_hostname -p $main_port
+	fi
+	cat <<-EOF2 | tee $recovery_data_directory/$recovery_config_filename
+		recovery_target_timeline = 'latest'
+		{% if postgresql_version is version('12', '<') %}
+		standby_mode = on
+		{% endif %}
+		primary_conninfo = 'host=$main_hostname port=$main_port application_name=$recovery_slot_name'
+		{% if postgresql_setup_stage == 'write_recovery_conf' and postgresql_use_replication_slot %}
+		primary_slot_name = '$recovery_slot_name'
+		{% endif %}
+		{{ postgresql_extra_recovery_config_parameters }}
+	EOF2
+	{% if postgresql_version is version('12', '>=') %}
+	touch $recovery_data_directory/standby.signal
+	{% endif %}
+	{% if postgresql_setup_stage == 'write_recovery_conf' and postgresql_use_replication_slot %}
+	psql -c "SELECT pg_create_physical_replication_slot('$recovery_slot_name') WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$recovery_slot_name')" -h $main_hostname -p $main_port
+	{% endif %}
+EOF
+echo "recovery 1st stage successfully completed"

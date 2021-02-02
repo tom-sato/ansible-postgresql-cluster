@@ -1,0 +1,17 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    postgresql_extra_config_parameters: |
+      {% if pgpool2_backend_clustering_mode == 'snapshot_isolation' %}
+      default_transaction_isolation = 'repeatable read'
+      {% endif %}
+      restart_after_crash = off
+    postgresql_control_as_service: no
+    postgresql_setup_stage: "{{ (pgpool2_backend_clustering_mode == 'streaming_replication') | ternary('write_recovery_conf', 'basebackup') }}"
+  roles:
+    - common
+    - hosts
+    - locale
+    - postgresql
+    - pgpool2

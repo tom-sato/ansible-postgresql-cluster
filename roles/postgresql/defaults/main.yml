@@ -1,0 +1,19 @@
+---
+postgresql_version: 13
+postgresql_data_directory: /var/lib/pgsql/{{ postgresql_version }}/data
+postgresql_syslog_facility: LOCAL0
+postgresql_syslog_file: /var/log/postgresql-{{ postgresql_version }}
+postgresql_port: 5432
+postgresql_password: postgres
+postgresql_auth_method: "{{ (postgresql_version is version('10', '>=')) | ternary('scram-sha-256', 'md5') }}"
+postgresql_extra_initdb_options: -E UTF8 --locale=C
+postgresql_extra_config_parameters: ''
+postgresql_extra_hba_records: |
+  host all all samenet {{ postgresql_auth_method }}
+  host replication all samenet {{ postgresql_auth_method }}
+postgresql_control_as_service: yes
+postgresql_setup_stage: write_recovery_conf	# initdb, basebackup, write_recovery_conf
+postgresql_primary_hostname: '{{ groups.all[0] }}'
+postgresql_extra_recovery_config_parameters: ''
+postgresql_use_rewind: no
+postgresql_use_replication_slot: yes

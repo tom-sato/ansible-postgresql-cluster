@@ -1,0 +1,6 @@
+---
+locale: ja_JP.UTF-8
+keymap: jp
+x11_keymap_layout: jp
+x11_keymap_model: jp106
+timezone: Asia/Tokyo

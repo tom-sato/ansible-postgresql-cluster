@@ -1,0 +1,4 @@
+---
+pacemaker_resource_prefix: my_
+pacemaker_virtual_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
+pacemaker_virtual_hostname: vip-1

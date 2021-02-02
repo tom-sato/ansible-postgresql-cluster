@@ -1,0 +1,89 @@
+---
+- yum:
+    name:
+      - pacemaker
+      - resource-agents
+      - pcs
+      - sbd
+    enablerepo: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('ha', '') }}"
+    state: latest
+- lineinfile:
+    path: /etc/hosts
+    regexp: ^(127\.0\.0\.1\s+{{ ansible_hostname }}.*)
+    line: '#\1'
+    backrefs: yes
+- command: passwd -S hacluster
+  register: _command
+  changed_when: false
+- user:
+    name: hacluster
+    password: "{{ pacemaker_password | password_hash('sha512') }}"
+  when: _command.stdout is not search('PS')
+- service:
+    name: pcsd
+    state: started
+    enabled: yes
+- stat:
+    path: /var/lib/pcsd/{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('known-hosts', 'tokens') }}
+  register: _stat
+- block:
+    - command: pcs host auth {{ groups.all | join (' ') }} -u hacluster -p {{ pacemaker_password }}
+      when: ansible_distribution_major_version is version('8', '>=')
+    - command: pcs cluster auth {{ groups.all | join (' ') }} -u hacluster -p {{ pacemaker_password }}
+      when: ansible_distribution_major_version is version('8', '<')
+  when: not _stat.stat.exists
+- block:
+    - stat:
+        path: /etc/corosync/corosync.conf
+      register: _stat
+    - block:
+        - command: pcs cluster setup {{ pacemaker_cluster_name }} {{ groups.all | join(' ') }}
+          when: ansible_distribution_major_version is version('8', '>=')
+        - command: pcs cluster setup --name {{ pacemaker_cluster_name }} {{ groups.all | join(' ') }}
+          when: ansible_distribution_major_version is version('8', '<')
+      when: not _stat.stat.exists
+  run_once: true
+- block:
+    - lineinfile:
+        path: /etc/modules-load.d/watchdog.conf
+        line: softdog
+        mode: 0644
+        create: yes
+      register: _lineinfile
+    - service:
+        name: systemd-modules-load
+        state: restarted
+    - service:
+        name: sbd
+        enabled: yes
+  when: pacemaker_use_softdog
+- block:
+    - command: pcs cluster status
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: pcs cluster start --all --wait
+      when: _command.rc != 0
+    - command: pcs resource defaults
+      register: _command
+      changed_when: false
+    - command: pcs resource defaults {{ item.key }}={{ item.value }}
+      when: "_command.stdout is not search('%s=%s' | format(item.key, item.value))"
+      with_dict:
+        'resource-stickiness': INFINITY
+        'migration-threshold': '{{ pacemaker_migration_threshold }}'
+        'failure-timeout': '{{ pacemaker_failure_timeout }}'
+    - command: pcs property
+      register: _command
+      changed_when: no
+    - command: pcs property set {{ item.key }}={{ item.value }}
+      when: "_command.stdout is not search('%s: %s' | format(item.key, item.value))"
+      with_dict:
+        'no-quorum-policy': '{{ pacemaker_no_quorum_policy }}'
+        'stonith-enabled': "{{ pacemaker_use_softdog | ternary('true', 'false') }}"
+        'stonith-watchdog-timeout': "{{ pacemaker_use_softdog | ternary('10s', '0') }}"
+        'pe-error-series-max': 1000
+        'pe-warn-series-max': 1000
+        'pe-input-series-max': 1000
+        'cluster-recheck-interval': 5min
+  run_once: true

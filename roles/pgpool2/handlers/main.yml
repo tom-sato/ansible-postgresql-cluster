@@ -1,0 +1,5 @@
+---
+- name: pgpool2_restart
+  service:
+    name: pgpool
+    state: restarted

@@ -1,0 +1,78 @@
+---
+- selinux:
+    policy: targeted
+    state: permissive
+  when: ansible_distribution_major_version is version('8', '>=')
+- block:
+    - command: getsebool daemons_enable_cluster_mode
+      register: _command
+      changed_when: false
+    - command: setsebool -P daemons_enable_cluster_mode=on
+      when: _command.stdout is search('off')
+  when: ansible_distribution_major_version is version('8', '<')
+- lineinfile:
+    path: /etc/hosts
+    line: "{{ pacemaker_virtual_ip }} {{ pacemaker_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pacemaker_virtual_hostname }}"
+- block:
+    - tempfile:
+        state: directory
+      register: _tempfile
+      changed_when: false
+    - command: pcs cluster cib {{ _tempfile.path }}/tmp-cib.xml
+      changed_when: false
+    - copy:
+        src: '{{ _tempfile.path }}/tmp-cib.xml'
+        dest: '{{ _tempfile.path }}/tmp-cib.deltasrc.xml'
+        mode: 0600
+        remote_src: yes
+      changed_when: false
+    - set_fact:
+        _resource_suffix: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('clone', 'master') }}"
+    - command: pcs -f {{ _tempfile.path }}/tmp-cib.xml {{ item }}
+      with_items:
+        - resource create {{ pacemaker_resource_prefix }}drbd ocf:linbit:drbd
+          drbd_resource={{ drbd_resource_name }}
+          {% if ansible_distribution_major_version is version('8', '>=') %}
+          promotable promoted-max=1 promoted-node-max=1
+          {% else %}
+          master master-max=1 master-node-max=1
+          {% endif %}
+          clone-max=2 clone-node-max=1 notify=true
+        - resource create {{ pacemaker_resource_prefix }}filesystem ocf:heartbeat:Filesystem
+          device={{ drbd_device }}
+          directory={{ drbd_mount_directory }}
+          fstype={{ drbd_fstype }}
+          --group {{ pacemaker_resource_prefix }}pgsql-group
+        - resource create {{ pacemaker_resource_prefix }}ipaddr ocf:heartbeat:IPaddr2
+          ip={{ pacemaker_virtual_ip }}
+          nic={{ public_interface }}
+          cidr_netmask=24
+          --group {{ pacemaker_resource_prefix }}pgsql-group
+        - resource create {{ pacemaker_resource_prefix }}pgsql ocf:heartbeat:pgsql
+          pgctl=/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl
+          pgdata={{ postgresql_data_directory }}
+          pgport={{ postgresql_port }}
+          --group {{ pacemaker_resource_prefix }}pgsql-group
+        - constraint colocation add {{ pacemaker_resource_prefix }}pgsql-group
+          with master {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
+        - constraint order promote {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
+          then start {{ pacemaker_resource_prefix }}pgsql-group
+        - constraint location {{ pacemaker_resource_prefix }}pgsql-group
+          rule score=200 \#uname eq {{ postgresql_primary_hostname }}
+        - constraint location {{ pacemaker_resource_prefix }}pgsql-group
+          rule score=100 \#uname ne {{ postgresql_primary_hostname }}
+      register: _command
+      changed_when: _command.rc == 0
+      failed_when: _command.rc != 0 and _command is not search('already exists')
+    - command: diff {{ _tempfile.path }}/original.xml {{ _tempfile.path }}/new.xml
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: pcs cluster cib-push {{ _tempfile.path }}/tmp-cib.xml diff-against={{ _tempfile.path }}/tmp-cib.xml.deltasrc
+      when: _command.rc != 0
+  run_once: true
+  always:
+    - file:
+        path: '{{ _tempfile.path }}'
+        state: absent
+      changed_when: false

@@ -1,0 +1,103 @@
+---
+- yum:
+    name: resource-agents-paf
+    enablerepo: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('ha', '') }}"
+    state: latest
+- lineinfile:
+    path: /etc/hosts
+    line: "{{ pacemaker_virtual_ip }} {{ pacemaker_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pacemaker_virtual_hostname }}"
+- set_fact:
+    _changed: false
+- blockinfile:
+    path: '{{ postgresql_data_directory }}/pg_hba.conf'
+    marker: '# {mark} ANSIBLE MANAGED BLOCK FOR {{ role_name | upper }}'
+    insertafter: ^host\s+replication\s+all\s+::1/128
+    block: |
+      host replication all {{ pacemaker_virtual_ip }}/32 reject
+      host replication all {{ lookup('vars', 'ansible_' + public_interface).ipv4.address }}/32 reject
+  register: _blockinfile
+- set_fact:
+    _changed: '{{ _changed or _blockinfile.changed }}'
+- blockinfile:
+    path: "{{ postgresql_data_directory }}/{{ (postgresql_version is version('12', '>=')) | ternary('postgresql.auto.conf', 'recovery.conf.pcmk') }}"
+    block: |
+      recovery_target_timeline = 'latest'
+      {% if postgresql_version is version('12', '<') %}
+      standby_mode = on
+      {% endif %}
+      primary_conninfo = 'host={{ pacemaker_virtual_hostname }} port={{ postgresql_port }} application_name={{ ansible_hostname }}'
+      {{ postgresql_extra_recovery_config_parameters }}
+    owner: postgres
+    group: postgres
+    mode: 0600
+    create: yes
+  register: _blockinfile
+- set_fact:
+    _changed: '{{ _changed or _blockinfile.changed }}'
+- block:
+    - copy:
+        src: '{{ postgresql_data_directory }}/recovery.conf.pcmk'
+        dest: '{{ postgresql_data_directory }}/recovery.conf'
+        owner: postgres
+        group: postgres
+        remote_src: yes
+      register: _copy
+    - set_fact:
+        _changed: '{{ _changed or _copy.changed }}'
+  when:
+    - ansible_hostname != postgresql_primary_hostname
+    - postgresql_version is version('12', '<')
+- command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl restart -w -D {{ postgresql_data_directory }}
+  become_user: postgres
+  when: _changed
+- block:
+    - tempfile:
+        state: directory
+      register: _tempfile
+      changed_when: false
+    - command: pcs cluster cib {{ _tempfile.path }}/tmp-cib.xml
+      changed_when: false
+    - copy:
+        src: '{{ _tempfile.path }}/tmp-cib.xml'
+        dest: '{{ _tempfile.path }}/tmp-cib.xml.deltasrc'
+        mode: 0600
+        remote_src: yes
+      changed_when: false
+    - set_fact:
+        _resource_suffix: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('clone', 'master') }}"
+    - command: pcs -f {{ _tempfile.path }}/tmp-cib.xml {{ item }}
+      with_items:
+        - resource create {{ pacemaker_resource_prefix }}ipaddr ocf:heartbeat:IPaddr2
+          ip={{ pacemaker_virtual_ip }}
+          nic={{ public_interface }}
+          cidr_netmask=24
+        - resource create {{ pacemaker_resource_prefix }}pgsqlms ocf:heartbeat:pgsqlms
+          bindir=/usr/pgsql-{{ postgresql_version }}/bin
+          pgdata={{ postgresql_data_directory }}
+          pgport={{ postgresql_port }}
+          {% if ansible_distribution_major_version is version('8', '>=') %}
+          promotable notify=true
+          {% else %}
+          master notify=true
+          {% endif %}
+        - constraint colocation add {{ pacemaker_resource_prefix }}ipaddr
+          with master {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
+        - constraint order promote {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
+          then start {{ pacemaker_resource_prefix }}ipaddr kind=Mandatory symmetrical=false
+        - constraint order demote {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
+          then stop {{ pacemaker_resource_prefix }}ipaddr kind=Mandatory symmetrical=false
+      register: _command
+      changed_when: _command.rc == 0
+      failed_when: _command.rc != 0 and _command is not search('already exists')
+    - command: diff {{ _tempfile.path }}/original.xml {{ _tempfile.path }}/new.xml
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: pcs cluster cib-push {{ _tempfile.path }}/tmp-cib.xml diff-against={{ _tempfile.path }}/tmp-cib.xml.deltasrc
+      when: _command.rc != 0
+  run_once: true
+  always:
+    - file:
+        path: '{{ _tempfile.path }}'
+        state: absent
+      changed_when: false

@@ -1,0 +1,67 @@
+---
+- fail:
+    msg: PostgreSQL version later than 11 not supported
+  when: postgresql_version is version('>', '11')
+- lineinfile:
+    path: /etc/hosts
+    line: "{{ pacemaker_virtual_ip }} {{ pacemaker_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pacemaker_virtual_hostname }}"
+- block:
+    - tempfile:
+        state: directory
+      register: _tempfile
+      changed_when: false
+    - command: pcs cluster cib {{ _tempfile.path }}/tmp-cib.xml
+      changed_when: false
+    - copy:
+        src: '{{ _tempfile.path }}/tmp-cib.xml'
+        dest: '{{ _tempfile.path }}/tmp-cib.xml.deltasrc'
+        mode: 0600
+        remote_src: yes
+      changed_when: false
+    - set_fact:
+        _resource_suffix: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('clone', 'master') }}"
+    - command: pcs -f {{ _tempfile.path }}/tmp-cib.xml {{ item }}
+      with_items:
+        - resource create {{ pacemaker_resource_prefix }}ipaddr ocf:heartbeat:IPaddr2
+          ip={{ pacemaker_virtual_ip }}
+          nic={{ public_interface }}
+          cidr_netmask=24
+        - resource create {{ pacemaker_resource_prefix }}pgsql ocf:heartbeat:pgsql
+          pgctl=/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl
+          pgdata={{ postgresql_data_directory }}
+          pgport={{ postgresql_port }}
+          rep_mode={{ pacemaker_pgsql_rep_mode }}
+          node_list="{{ groups.all | join(' ') }}"
+          master_ip={{ pacemaker_virtual_ip }}
+          replication_slot_name={{ pacemaker_pgsql_replication_slot_name }}
+          {% if ansible_distribution_major_version is version('8', '>=') %}
+          promotable promoted-max=1 promoted-node-max=1
+          {% else %}
+          master master-max=1 master-node-max=1
+          {% endif %}
+          clone-max={{ groups.all | length }} clone-node-max=1 notify=true
+        - constraint colocation add {{ pacemaker_resource_prefix }}ipaddr
+          with master {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+        - constraint order promote {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          then start {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
+        - constraint order demote {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          then stop {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
+        - constraint location {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          rule role=master score=200 \#uname eq {{ postgresql_primary_hostname }}
+        - constraint location {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          rule role=master score=100 \#uname ne {{ postgresql_primary_hostname }}
+      register: _command
+      changed_when: _command.rc == 0
+      failed_when: _command.rc != 0 and _command is not search('already exists')
+    - command: diff {{ _tempfile.path }}/original.xml {{ _tempfile.path }}/new.xml
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: pcs cluster cib-push {{ _tempfile.path }}/tmp-cib.xml diff-against={{ _tempfile.path }}/tmp-cib.xml.deltasrc
+      when: _command.rc != 0
+  run_once: true
+  always:
+    - file:
+        path: '{{ _tempfile.path }}'
+        state: absent
+      changed_when: false

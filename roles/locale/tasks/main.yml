@@ -1,0 +1,34 @@
+---
+- set_fact:
+    _language: "{{ locale.split('_')[0] }}"
+- command: localectl list-locales
+  register: _command
+  changed_when: false
+- block:
+    - yum:
+        name: glibc-langpack-{{ _language }}
+        state: present
+      when: ansible_distribution_major_version is version('8', '>=')
+    - block:
+        - yum:
+            name: glibc-common
+            state: latest
+        - command: yum -y reinstall glibc-common
+          args:
+            warn: no
+      when: ansible_distribution_major_version is version('8', '<')
+  when: _command.stdout is not search(_language)
+- command: localectl status
+  register: _command
+  changed_when: false
+- command: localectl set-locale LANG={{ locale }}
+  when: "_command.stdout is not search('System Locale: LANG=' + locale)"
+- command: localectl set-keymap {{ keymap }}
+  when: "_command.stdout is not search('VC Keymap: ' + keymap)"
+- command: localectl set-x11-keymap {{ x11_keymap_layout }} {{ x11_keymap_model }}
+  when: "_command.stdout is not search('X11 Layout: ' + x11_keymap_layout) or _command.stdout is not search('X11 Model: ' + x11_keymap_model)"
+- command: timedatectl status
+  register: _command
+  changed_when: false
+- command: timedatectl set-timezone {{ timezone }}
+  when: "_command.stdout is not search('Time zone: ' + timezone)"

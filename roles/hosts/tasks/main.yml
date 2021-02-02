@@ -1,0 +1,7 @@
+---
+- blockinfile:
+    path: /etc/hosts
+    block: |
+      {% for item in groups.all %}
+      {{ hostvars[item]['ansible_' + public_interface].ipv4.address }} {{ hostvars[item].ansible_fqdn }} {{ item }}
+      {% endfor %}

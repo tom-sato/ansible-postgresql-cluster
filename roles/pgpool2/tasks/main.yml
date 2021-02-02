@@ -1,0 +1,271 @@
+---
+- fail:
+    msg: Pgpool-II version earlier than 3.6 not supported
+  when: pgpool2_version is version('3.6', '<')
+- uri:
+    url: https://www.pgpool.net/yum/rpms/{{ pgpool2_version }}/redhat/rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}/
+    return_content: yes
+  register: _uri
+  changed_when: false
+- yum:
+    name: "{{ _uri.url }}/{{ _uri.content | regex_findall('pgpool-II-release-.*?\\.rpm', multiline=true) | my_version_sort | last }}"
+    state: present
+- yum:
+    name:
+      - pgpool-II-pg{{ postgresql_version | regex_replace('\.') }}
+      - pgpool-II-pg{{ postgresql_version | regex_replace('\.') }}-extensions
+    state: latest
+- lineinfile:
+    path: /etc/sysconfig/pgpool
+    regexp: ^OPTS=
+    line: OPTS="-n -D"
+- blockinfile:
+    path: /etc/rsyslog.d/pgpool.conf
+    block: |
+      {{ pgpool2_syslog_facility }}.* action(type="omfile" file="{{ pgpool2_syslog_file }}" fileOwner="postgres" fileGroup="postgres")
+      & stop
+    mode: 0644
+    create: yes
+  register: _blockinfile
+- service:
+    name: rsyslog
+    state: restarted
+  when: _blockinfile.changed
+- lineinfile:
+    path: /etc/logrotate.d/syslog
+    insertbefore: ^{
+    line: '{{ pgpool2_syslog_file }}'
+- lineinfile:
+    path: /etc/hosts
+    line: "{{ pgpool2_delegate_ip }} {{ pgpool2_delegate_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pgpool2_delegate_hostname }}"
+- lineinfile:
+    path: /var/lib/pgsql/.pcppass
+    line: '*:{{ pgpool2_pcp_port }}:{{ pgpool2_pcp_username }}:{{ pgpool2_pcp_password }}'
+    owner: postgres
+    group: postgres
+    mode: 0600
+    create: yes
+- lineinfile:
+    path: /var/lib/pgsql/.pgpass
+    line: '*:{{ pgpool2_port }}:*:postgres:{{ postgresql_password }}'
+- file:
+    path: /var/lib/pgsql/.ssh
+    state: directory
+    owner: postgres
+    group: postgres
+- openssh_keypair:
+    path: /var/lib/pgsql/.ssh/id_rsa
+    owner: postgres
+    group: postgres
+  register: _openssh_keypair
+- authorized_key:
+    user: postgres
+    key: '{{ _openssh_keypair.public_key }}'
+  delegate_to: '{{ item }}'
+  with_items: '{{ groups.all }}'
+- template:
+    src: '{{ item[1] }}.j2'
+    dest: '{{ item[0].dest }}/{{ item[1] }}'
+    owner: postgres
+    group: postgres
+    mode: 0700
+    lstrip_blocks: yes
+  with_subelements:
+    - - dest: /etc/pgpool-II
+        src:
+          - follow_primary.sh
+          - failover.sh
+      - dest: '{{ postgresql_data_directory }}'
+        src:
+          - recovery_1st_stage.sh
+          - recovery_2nd_stage.sh
+          - pgpool_remote_start
+    - src
+- block:
+    - command: psql -c "SELECT 'found' FROM pg_extension WHERE extname = 'pgpool_recovery'" -d template1 -p {{ postgresql_port }}
+      register: _command
+      become_user: postgres
+      changed_when: false
+    - command: psql -c "CREATE EXTENSION pgpool_recovery" -d template1 -p {{ postgresql_port }}
+      become_user: postgres
+      when: _command.stdout is not search('found')
+  when: ansible_hostname == postgresql_primary_hostname or pgpool2_backend_clustering_mode != 'streaming_replication'
+- lineinfile:
+    path: /etc/pgpool-II/pgpool_node_id
+    line: '{{ groups.all.index(ansible_hostname) }}'
+  when: pgpool2_version is version('4.2', '>=')
+- blockinfile:
+    path: /etc/pgpool-II/pgpool.conf
+    content: |
+      {% if pgpool2_version is version('4.2', '>=') %}
+      backend_clustering_mode = '{{ pgpool2_backend_clustering_mode }}'
+      {% endif %}
+      listen_addresses = '*'
+      port = {{ pgpool2_port }}
+      pcp_port = {{ pgpool2_pcp_port }}
+      {% for item in groups.all %}
+      backend_hostname{{ loop.index0 }} = '{{ item }}'
+      backend_port{{ loop.index0 }} = {{ postgresql_port }}
+      backend_weight{{ loop.index0 }} = 1
+      backend_data_directory{{ loop.index0 }} = '{{ postgresql_data_directory }}'
+      {% if pgpool2_version is version('4.1', '>=') %}
+      backend_application_name{{ loop.index0 }} = '{{ item | regex_replace('-', '_') }}'
+      {% endif %}
+      {% endfor %}
+      enable_pool_hba = on
+      log_destination = 'syslog'
+      {% if pgpool2_version is version('4.2', '>=') %}
+      log_line_prefix = '(%a) '
+      {% else %}
+      log_line_prefix = ''
+      {% endif %}
+      syslog_facility = '{{ pgpool2_syslog_facility }}'
+      logdir = '/var/run/pgpool'
+      {% if pgpool2_backend_clustering_mode == 'native_replication' %}
+      {% if pgpool2_version is version('4.2', '<') %}
+      replication_mode = on
+      {% endif %}
+      {% endif %}
+      {% if pgpool2_backend_clustering_mode != 'raw' %}
+      load_balance_mode = on
+      {% else %}
+      load_balance_mode = off
+      {% endif %}
+      {% if pgpool2_version is version('4.2', '<') %}
+      {% if pgpool2_backend_clustering_mode in ['streaming_replication', 'logical_replication', 'slony'] %}
+      master_slave_mode = on
+      {% if pgpool2_backend_clustering_mode == 'streaming_replication' %}
+      master_slave_sub_mode = 'stream'
+      {% elif pgpool2_backend_clustering_mode == 'logical_replication' %}
+      master_slave_sub_mode = 'logical'
+      {% elif pgpool2_backend_clustering_mode == 'slony' %}
+      master_slave_sub_mode = 'slony'
+      {% endif %}
+      {% endif %}
+      {% endif %}
+      {% if pgpool2_backend_clustering_mode == 'streaming_replication' %}
+      sr_check_period = 10
+      sr_check_user = 'postgres'
+      {% if pgpool2_version is version('4.0', '<') %}
+      sr_check_password = '{{ postgresql_password }}'
+      {% endif %}
+      {% if pgpool2_version is version('4.2', '>=') %}
+      follow_primary_command = '/etc/pgpool-II/follow_primary.sh %d %h %p %D %M %m %H %P %r %R'
+      {% elif pgpool2_version is version('4.1', '>=')  %}
+      follow_master_command = '/etc/pgpool-II/follow_primary.sh %d %h %p %D %M %m %H %P %r %R'
+      {% else %}
+      follow_master_command = 'sudo -u postgres /etc/pgpool-II/follow_primary.sh %d %h %p %D %M %m %H %P %r %R'
+      {% endif %}
+      {% endif %}
+      health_check_period = 10
+      health_check_user = 'postgres'
+      {% if pgpool2_version is version('4.0', '<') %}
+      health_check_password = '{{ postgresql_password }}'
+      {% endif %}
+      {% if pgpool2_backend_clustering_mode == 'streaming_replication' %}
+      {% if pgpool2_version is version('4.1', '>=') %}
+      failover_command = '/etc/pgpool-II/failover.sh %d %h %p %D %M %m %H %P %r %R'
+      {% else %}
+      failover_command = 'sudo -u postgres /etc/pgpool-II/failover.sh %d %h %p %D %M %m %H %P %r %R'
+      {% endif %}
+      {% endif %}
+      recovery_user = 'postgres'
+      {% if pgpool2_version is version('4.0', '<') %}
+      recovery_password = '{{ postgresql_password }}'
+      {% endif %}
+      recovery_1st_stage_command = 'recovery_1st_stage.sh'
+      {% if pgpool2_backend_clustering_mode != 'streaming_replication' %}
+      recovery_2nd_stage_command = 'recovery_2nd_stage.sh'
+      {% endif %}
+      use_watchdog = on
+      trusted_servers = '{{ pgpool2_trusted_servers }}'
+      {% if pgpool2_version is version('4.2', '>=') %}
+      {% for item in groups.all %}
+      hostname{{ loop.index0 }} = '{{ item }}'
+      wd_port{{ loop.index0 }} = {{ pgpool2_wd_port }}
+      pgpool_port{{ loop.index0 }} = {{ pgpool2_port }}
+      {% endfor %}
+      {% else %}
+      wd_hostname = '{{ ansible_hostname }}'
+      wd_port = {{ pgpool2_wd_port }}
+      {% for item in groups.all | difference([ansible_hostname]) %}
+      other_pgpool_hostname{{ loop.index0 }} = '{{ item }}'
+      other_pgpool_port{{ loop.index0 }} = {{ pgpool2_port }}
+      other_wd_port{{ loop.index0 }} = {{ pgpool2_wd_port }}
+      {% endfor %}
+      {% endif %}
+      delegate_IP = '{{ pgpool2_delegate_ip }}'
+      {% if pgpool2_version is version('4.1', '>=') %}
+      if_up_cmd = '/usr/bin/sudo ip address add $_IP_$/24 dev {{ public_interface }}'
+      if_down_cmd = '/usr/bin/sudo ip address del $_IP_$/24 dev {{ public_interface }}'
+      arping_cmd = '/usr/bin/sudo arping -U -w 1 -I {{ public_interface }} $_IP_$'
+      {% else %}
+      if_cmd_path = '/sbin'
+      if_up_cmd = 'ip address add $_IP_$/24 dev {{ public_interface }}'
+      if_down_cmd = 'ip address del $_IP_$/24 dev {{ public_interface }}'
+      arping_path = '/usr/sbin'
+      arping_cmd = 'arping -U -w 1 -I {{ public_interface }} $_IP_$'
+      {% endif %}
+      {% if pgpool2_version is version('4.2', '>=') %}
+      {% for item in groups.all %}
+      heartbeat_hostname{{ loop.index0 }} = '{{ item }}'
+      heartbeat_port{{ loop.index0 }} = {{ pgpool2_heartbeat_port }}
+      heartbeat_device{{ loop.index0 }} = '{{ public_interface }}'
+      {% endfor %}
+      {% else %}
+      wd_heartbeat_port = {{ pgpool2_heartbeat_port }}
+      {% for item in groups.all | difference([ansible_hostname]) %}
+      heartbeat_destination{{ loop.index0 }} = '{{ item }}'
+      heartbeat_destination_port{{ loop.index0 }} = {{ pgpool2_heartbeat_port }}
+      heartbeat_device{{ loop.index0 }} = '{{ public_interface }}'
+      {% endfor %}
+      {% endif %}
+      {{ pgpool2_extra_config_parameters }}
+  notify: pgpool2_restart
+- lineinfile:
+    path: /etc/pgpool-II/pcp.conf
+    line: "{{ pgpool2_pcp_username }}:{{ pgpool2_pcp_password | hash('md5') }}"
+- replace:
+    path: /etc/pgpool-II/pool_hba.conf
+    regexp: ^((local|host).*)trust
+    replace: \1{{ postgresql_auth_method }}
+- blockinfile:
+    path: /etc/pgpool-II/pool_hba.conf
+    block: |
+      {{ pgpool2_extra_hba_records }}
+  notify: pgpool2_restart
+- block:
+    - lineinfile:
+        path: /var/lib/pgsql/.pgpoolkey
+        line: '{{ pgpool2_encryption_key }}'
+        owner: postgres
+        group: postgres
+        mode: 0600
+        create: yes
+      when: pgpool2_version is version('4.0', '>=')
+    - stat:
+        path: /etc/pgpool-II/pool_passwd
+      register: _stat
+    - copy:
+        content: ''
+        dest: /etc/pgpool-II/pool_passwd
+        owner: postgres
+        group: postgres
+      when: not _stat.stat.exists
+    - command: 'grep -E ^postgres: /etc/pgpool-II/pool_passwd'
+      register: _command
+      changed_when: false
+      failed_when: false
+    - block:
+        - command: pg_enc -m -u postgres {{ postgresql_password }}
+          become_user: postgres
+          when: pgpool2_version is version('4.0', '>=')
+        - command: pg_md5 -m -u postgres {{ postgresql_password }}
+          become_user: postgres
+          when: pgpool2_version is version('4.0', '<')
+      when: _command.rc != 0
+  when: postgresql_auth_method in ['scram-sha-256', 'md5']
+- service:
+    name: pgpool
+    state: started
+    enabled: yes

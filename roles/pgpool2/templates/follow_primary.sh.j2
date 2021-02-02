@@ -1,0 +1,37 @@
+#! /bin/bash
+exec > >(logger -i -p {{ pgpool2_syslog_facility }}.notice -t $(basename $0)) 2>&1
+set -e -x
+detached_node_id=$1
+detached_hostname=$2
+detached_port=$3
+detached_data_directory=$4
+old_main_node_id=$5
+new_main_node_id=$6
+new_main_hostname=$7
+old_primary_node_id=$8
+new_main_port=$9
+new_main_data_directory=${10}
+recovery_config_filename={{ (postgresql_version is version('12', '>=')) | ternary('postgresql.auto.conf', 'recovery.conf') }}
+detached_slot_name=${detached_hostname/-/_}
+echo "follow primary starting..."
+if ! /usr/pgsql-{{ postgresql_version }}/bin/pg_isready -h $detached_hostname -p $detached_port; then
+	echo "detached node is not running, follow primary skipped"
+	exit 0
+fi
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $detached_hostname <<-EOF
+	set -e -x
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl stop -D $detached_data_directory -m fast
+	{% if postgresql_use_rewind %}
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_rewind -D $detached_data_directory --source-server="host=$new_main_hostname port=$new_main_port"
+	{% endif %}
+	sed -i -E "s/^(primary_conninfo = ).*/\1'host=$new_main_hostname port=$new_main_port application_name=$detached_slot_name'/" $detached_data_directory/$recovery_config_filename
+	{% if postgresql_use_replication_slot %}
+	sed -i -E "s/^(primary_slot_name = ).*/\1'$detached_slot_name'/" $detached_data_directory/$recovery_config_filename
+	{% endif %}
+	{% if postgresql_use_replication_slot %}
+	psql -c "SELECT pg_create_physical_replication_slot('$detached_slot_name') WHERE NOT EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$detached_slot_name')" -h $new_main_hostname -p $new_main_port
+	{% endif %}
+	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D $detached_data_directory -l /dev/null
+EOF
+pcp_attach_node -U {{ pgpool2_pcp_username }} -h {{ pgpool2_delegate_hostname }} -p {{ pgpool2_pcp_port }} -w $detached_node_id
+echo "follow primary successfully completed"
