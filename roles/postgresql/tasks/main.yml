@@ -222,6 +222,7 @@
                 dest: '{{ postgresql_data_directory }}/standby.signal'
                 owner: postgres
                 group: postgres
+                mode: 0600
               notify: postgresql_restart
               when: not _stat.stat.exists
           when: postgresql_version is version('12', '>=')
