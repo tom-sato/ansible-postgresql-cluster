@@ -57,10 +57,6 @@
           with master {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
         - constraint order promote {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
           then start {{ pacemaker_resource_prefix }}pgsql-group
-        - constraint location {{ pacemaker_resource_prefix }}pgsql-group
-          rule score=200 \#uname eq {{ postgresql_primary_hostname }}
-        - constraint location {{ pacemaker_resource_prefix }}pgsql-group
-          rule score=100 \#uname ne {{ postgresql_primary_hostname }}
       register: _command
       changed_when: _command.rc == 0
       failed_when: _command.rc != 0 and _command is not search('already exists')
