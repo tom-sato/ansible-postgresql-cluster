@@ -1,12 +1,19 @@
 ---
+- set_fact:
+    _repo: ha
+  when: ansible_distribution_major_version is version('8', '>=')
 - yum:
     name:
       - pacemaker
       - resource-agents
       - pcs
-      - sbd
-    enablerepo: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('ha', '') }}"
+    enablerepo: '{{ _repo | default(omit) }}'
     state: latest
+- yum:
+    name: sbd
+    enablerepo: '{{ _repo | default(omit) }}'
+    state: latest
+  when: pacemaker_use_softdog
 - lineinfile:
     path: /etc/hosts
     regexp: ^(127\.0\.0\.1\s+{{ ansible_hostname }}.*)
