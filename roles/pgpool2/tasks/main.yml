@@ -196,9 +196,9 @@
       {% endif %}
       delegate_IP = '{{ pgpool2_delegate_ip }}'
       {% if pgpool2_version is version('4.1', '>=') %}
-      if_up_cmd = '/usr/bin/sudo ip address add $_IP_$/24 dev {{ public_interface }}'
-      if_down_cmd = '/usr/bin/sudo ip address del $_IP_$/24 dev {{ public_interface }}'
-      arping_cmd = '/usr/bin/sudo arping -U -w 1 -I {{ public_interface }} $_IP_$'
+      if_up_cmd = '/usr/bin/sudo /sbin/ip address add $_IP_$/24 dev {{ public_interface }}'
+      if_down_cmd = '/usr/bin/sudo /sbin/ip address del $_IP_$/24 dev {{ public_interface }}'
+      arping_cmd = '/usr/bin/sudo /usr/sbin/arping -U -w 1 -I {{ public_interface }} $_IP_$'
       {% else %}
       if_cmd_path = '/sbin'
       if_up_cmd = 'ip address add $_IP_$/24 dev {{ public_interface }}'
