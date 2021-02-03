@@ -1,7 +1,7 @@
 ---
 - fail:
-    msg: PostgreSQL version later than 11 not supported
-  when: postgresql_version is version('>', '11')
+    msg: PostgreSQL resource agent with replication not supported for PostgreSQL version later than 11
+  when: postgresql_version is version('11', '>')
 - lineinfile:
     path: /etc/hosts
     line: "{{ pacemaker_virtual_ip }} {{ pacemaker_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pacemaker_virtual_hostname }}"
