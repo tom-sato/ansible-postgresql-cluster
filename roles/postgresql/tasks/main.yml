@@ -67,7 +67,7 @@
     with_items:
       - '{{ postgresql_data_directory | dirname }}'
       - '{{ postgresql_data_directory }}'
-  when: ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage != 'initdb'
+  when: ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage in ['basebackup', 'write_recovery_conf']
 - stat:
     path: '{{ postgresql_data_directory }}/PG_VERSION'
   register: _stat_pg_version
@@ -189,7 +189,7 @@
                   args:
                     warn: no
               when: _command.stdout is not search('found')
-          when: postgresql_setup_stage != 'basebackup'
+          when: postgresql_setup_stage == 'write_recovery_conf'
       when: _stat_pg_version.stat.exists
     - command: pg_basebackup -D {{ postgresql_data_directory }} -X stream -c fast -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
       become_user: postgres
@@ -235,7 +235,7 @@
               become_user: postgres
               when: _command_psql.stdout is not search('found')
           when: postgresql_use_replication_slot
-      when: postgresql_setup_stage != 'basebackup'
+      when: postgresql_setup_stage == 'write_recovery_conf'
     - service:
         name: postgresql-{{ postgresql_version }}
         state: started
@@ -250,10 +250,10 @@
       when: not postgresql_control_as_service
   when:
     - ansible_hostname != postgresql_primary_hostname
-    - postgresql_setup_stage != 'initdb'
+    - postgresql_setup_stage in ['basebackup', 'write_recovery_conf']
 - service:
     name: postgresql-{{ postgresql_version }}
     enabled: yes
   when:
-    - ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage != 'initdb'
+    - ansible_hostname == postgresql_primary_hostname or postgresql_setup_stage in ['basebackup', 'write_recovery_conf']
     - postgresql_control_as_service
