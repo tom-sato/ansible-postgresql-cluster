@@ -148,13 +148,15 @@
           become_user: postgres
           when: not _stat.stat.exists
       when: not postgresql_control_as_service
-    - command: psql -c "SELECT 'found' WHERE pg_is_in_recovery()" -p {{ postgresql_port }}
-      become_user: postgres
-      register: _command
-      changed_when: false
-    - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl promote -w -D {{ postgresql_data_directory }}
-      become_user: postgres
-      when: _command.stdout is search('found')
+    - block:
+        - command: psql -c "SELECT 'found' WHERE pg_is_in_recovery()" -p {{ postgresql_port }}
+          become_user: postgres
+          register: _command
+          changed_when: false
+        - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl promote -w -D {{ postgresql_data_directory }}
+          become_user: postgres
+          when: _command.stdout is search('found')
+      when: postgresql_setup_stage == 'write_recovery_conf'
   when: ansible_hostname == postgresql_primary_hostname
 - block:
     - set_fact:
