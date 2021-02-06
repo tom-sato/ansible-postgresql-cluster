@@ -1,0 +1,82 @@
+---
+- shell: curl https://dl.2ndquadrant.com/default/release/get/{{ postgresql_version }}/rpm | bash
+  args:
+    creates: /etc/yum.repos.d/2ndquadrant-dl-default-release-pg{{ postgresql_version }}.repo
+    warn: no
+- yum:
+    name: repmgr{{ postgresql_version | regex_replace('\.') }}
+    state: latest
+- blockinfile:
+    path: /etc/rsyslog.d/repmgr{{ postgresql_version | regex_replace('\.') }}.conf
+    block: |
+      {{ repmgr_syslog_facility }}.* action(type="omfile" file="{{ repmgr_syslog_file }}" fileOwner="postgres" fileGroup="postgres")
+      & stop
+    mode: 0644
+    create: yes
+  register: _blockinfile
+- service:
+    name: rsyslog
+    state: restarted
+  when: _blockinfile.changed
+- lineinfile:
+    path: /etc/logrotate.d/syslog
+    insertbefore: ^{
+    line: '{{ repmgr_syslog_file }}'
+- blockinfile:
+    path: /etc/repmgr/{{ postgresql_version }}/repmgr.conf
+    block: |
+      node_id={{ groups.all.index(ansible_hostname) + 1 }}
+      node_name='{{ ansible_hostname }}'
+      conninfo='host={{ ansible_hostname }} port={{ postgresql_port }}'
+      data_directory='{{ postgresql_data_directory }}'
+      log_facility='{{ repmgr_syslog_facility }}'
+      pg_bindir='/usr/pgsql-{{ postgresql_version }}/bin'
+      failover='automatic'
+      promote_command='/usr/pgsql-{{ postgresql_version }}/bin/repmgr --log-to-file standby promote'
+      follow_command='/usr/pgsql-{{ postgresql_version }}/bin/repmgr --log-to-file standby follow --upstream-node-id=%n'
+      monitoring_history=yes
+  notify: repmgr_restart
+- block:
+    - command: psql -c "SELECT 'found' FROM pg_extension WHERE extname = 'repmgr'" -p {{ postgresql_port }}
+      become_user: postgres
+      register: _command
+      changed_when: false
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/repmgr -p {{ postgresql_port }} primary register
+      become_user: postgres
+      when: _command.stdout is not search('found')
+    - command: psql -c "SHOW shared_preload_libraries" -A -t -p {{ postgresql_port }}
+      become_user: postgres
+      register: _command
+      changed_when: false
+    - block:
+        - command: psql -c "ALTER SYSTEM SET shared_preload_libraries TO '{{ (_command.stdout != '') | ternary(_command.stdout + ',repmgr', 'repmgr') }}'" -p {{ postgresql_port }}
+          become_user: postgres
+        - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl restart -w -D {{ postgresql_data_directory }}
+          become_user: postgres
+      when: _command.stdout is not search('repmgr')
+  when: ansible_hostname == postgresql_primary_hostname
+- block:
+    - stat:
+        path: '{{ postgresql_data_directory }}/PG_VERSION'
+      register: _stat
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/repmgr -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }} standby clone
+      become_user: postgres
+      when: not _stat.stat.exists
+    - stat:
+        path: '{{ postgresql_data_directory }}/postmaster.pid'
+      register: _stat
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D {{ postgresql_data_directory }}
+      become_user: postgres
+      when: not _stat.stat.exists
+    - command: psql -c "SELECT 'found' FROM repmgr.nodes WHERE node_name = '{{ ansible_hostname }}'" -p {{ postgresql_port }}
+      become_user: postgres
+      register: _command
+      changed_when: false
+    - command: /usr/pgsql-{{ postgresql_version }}/bin/repmgr -p {{ postgresql_port }} standby register
+      become_user: postgres
+      when: _command.stdout is not search('found')
+  when: ansible_hostname != postgresql_primary_hostname
+- service:
+    name: repmgr{{ postgresql_version | regex_replace('\.') }}
+    state: started
+    enabled: yes

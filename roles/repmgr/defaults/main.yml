@@ -1,0 +1,3 @@
+---
+repmgr_syslog_facility: LOCAL1
+repmgr_syslog_file: /var/log/repmgr{{ postgresql_version | regex_replace('\.') }}

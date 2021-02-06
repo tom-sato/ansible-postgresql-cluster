@@ -60,6 +60,7 @@ The following playbooks are available:
 * `pacemaker-drbd.yml` - Sets up a PostgreSQL cluster with Pacemaker and DRBD.
 * `pacemaker-replication.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication.
 * `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication using PAF.
+* `repmgr.yml` - Sets up a PostgreSQL cluster with repmgr. (experimental)
 
 Roles
 -----
@@ -158,6 +159,13 @@ Creates resources on the Pacemaker cluster.
 * `pacemaker_virtual_hostname` - Specifies the host name of the virtual IP address. The default is `vip-1`.
 * `pacemaker_pgsql_rep_mode` - Specifies the replication mode in the `pacemaker-replication` role. Valid values are `async` (the default), `sync`, and `slave`.
 * `pacemaker_pgsql_replication_slot_name` - Specifies the slot name when using the replication slot in the `pacemaker-replication` role. The default is `{{ pacemaker_resource_prefix + 'slot' }}`.
+
+### `repmgr`
+
+Sets up repmgr servers.
+
+* `repmgr_syslog_facility` - Specifies the syslog facility. The default is `LOCAL1`.
+* `repmgr_syslog_file` - Specifies the syslog file path. The default is `/var/log/repmgr{{ postgresql_version | regex_replace('\.') }}`.
 
 License
 -------

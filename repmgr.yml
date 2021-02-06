@@ -1,0 +1,16 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    postgresql_version: 12
+    postgresql_extra_config_parameters: |
+      archive_mode = on
+      archive_command = '/bin/true'
+    postgresql_control_as_service: no
+    postgresql_setup_stage: initdb
+  roles:
+    - common
+    - hosts
+    - locale
+    - postgresql
+    - repmgr

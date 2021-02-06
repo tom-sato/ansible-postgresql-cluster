@@ -1,0 +1,5 @@
+---
+- name: repmgr_restart
+  service:
+    name: repmgr{{ postgresql_version | regex_replace('\.') }}
+    state: restarted
