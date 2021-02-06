@@ -1,7 +1,7 @@
 Ansible Playbooks for PostgreSQL Clusters
 =========================================
 
-Ansible playbooks that set up various PostgreSQL clusters for testing.
+Ansible playbooks that set up various [PostgreSQL](https://www.postgresql.org/) clusters for testing.
 
 Requirements
 ------------
@@ -56,11 +56,11 @@ Playbooks
 The following playbooks are available:
 
 * `postgresql.yml` - Sets up a PostgreSQL cluster with replication.
-* `pgpool2.yml` - Sets up a PostgreSQL cluster with Pgpool-II.
-* `pacemaker-drbd.yml` - Sets up a PostgreSQL cluster with Pacemaker and DRBD.
+* `pgpool2.yml` - Sets up a PostgreSQL cluster with [Pgpool-II](https://www.pgpool.net/).
+* `pacemaker-drbd.yml` - Sets up a PostgreSQL cluster with [Pacemaker](https://clusterlabs.org/pacemaker/) and [DRBD](https://www.linbit.com/drbd/).
 * `pacemaker-replication.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication.
-* `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication using PAF.
-* `repmgr.yml` - Sets up a PostgreSQL cluster with repmgr. (experimental)
+* `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication using [PAF](https://clusterlabs.github.io/PAF/).
+* `repmgr.yml` - Sets up a PostgreSQL cluster with [repmgr](https://repmgr.org/). (experimental)
 
 Roles
 -----
