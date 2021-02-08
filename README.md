@@ -55,11 +55,11 @@ Playbooks
 
 The following playbooks are available:
 
-* `postgresql.yml` - Sets up a PostgreSQL cluster with replication.
+* `postgresql.yml` - Sets up a PostgreSQL cluster with streaming replication.
 * `pgpool2.yml` - Sets up a PostgreSQL cluster with [Pgpool-II](https://www.pgpool.net/).
 * `pacemaker-drbd.yml` - Sets up a PostgreSQL cluster with [Pacemaker](https://clusterlabs.org/pacemaker/) and [DRBD](https://www.linbit.com/drbd/).
-* `pacemaker-replication.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication.
-* `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and replication using [PAF](https://clusterlabs.github.io/PAF/).
+* `pacemaker-replication.yml` - Sets up a PostgreSQL cluster with Pacemaker and streaming replication.
+* `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and streaming replication using [PAF](https://clusterlabs.github.io/PAF/).
 * `repmgr.yml` - Sets up a PostgreSQL cluster with [repmgr](https://repmgr.org/). (experimental)
 
 Roles
