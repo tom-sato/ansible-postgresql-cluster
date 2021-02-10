@@ -206,6 +206,9 @@
       arping_path = '/usr/sbin'
       arping_cmd = 'arping -U -w 1 -I {{ public_interface }} $_IP_$'
       {% endif %}
+      {% if pgpool2_backend_clustering_mode == 'native_replication' %}
+      failover_when_quorum_exists = off
+      {% endif %}
       {% if pgpool2_version is version('4.2', '>=') %}
       {% for item in groups.all %}
       heartbeat_hostname{{ loop.index0 }} = '{{ item }}'
