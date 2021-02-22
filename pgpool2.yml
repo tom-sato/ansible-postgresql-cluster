@@ -2,6 +2,7 @@
 - hosts: all
   become: yes
   vars:
+    postgresql_auth_method: "{{ (postgresql_version is version('10', '>=') and pgpool2_version is version('4.0', '>=')) | ternary('scram-sha-256', 'md5') }}"
     postgresql_extra_config_parameters: |
       {% if pgpool2_backend_clustering_mode == 'snapshot_isolation' %}
       default_transaction_isolation = 'repeatable read'
