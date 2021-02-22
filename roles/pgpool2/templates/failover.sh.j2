@@ -13,15 +13,15 @@ new_main_port=$9
 new_main_data_directory=${10}
 detached_slot_name=${detached_hostname/-/_}
 echo "failover starting..."
+if [ $new_main_node_id -eq -1 ]; then
+	echo "no node is available, failover skipped"
+	exit 0
+fi
 if [ $detached_node_id -ne $old_primary_node_id ]; then
 	{% if postgresql_use_replication_slot %}
 	psql -c "SELECT pg_drop_replication_slot('$detached_slot_name') WHERE EXISTS (SELECT * FROM pg_replication_slots WHERE slot_name = '$detached_slot_name')" -h $new_main_hostname -p $new_main_port
 	{% endif %}
 	echo "detached node is not primary, failover skipped"
-	exit 0
-fi
-if [ $new_main_node_id -eq -1 ]; then
-	echo "no node is available, failover skipped"
 	exit 0
 fi
 ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $new_main_hostname <<-EOF
