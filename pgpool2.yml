@@ -10,6 +10,7 @@
       restart_after_crash = off
     postgresql_control_as_service: no
     postgresql_setup_stage: "{{ (pgpool2_backend_clustering_mode == 'streaming_replication') | ternary('write_recovery_conf', 'basebackup') }}"
+    postgresql_use_rewind: yes
   roles:
     - common
     - hosts
