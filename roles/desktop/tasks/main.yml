@@ -1,0 +1,37 @@
+---
+- block:
+  - yum:
+      name:
+        - '@base-x'
+        - gnome-shell
+        - gnome-terminal
+      state: present
+  - yum:
+      name: google-noto-*-cjk-ttc-fonts
+      state: present
+    when: locale == 'ja_JP.UTF-8'
+  when: ansible_distribution_major_version is version('8', '>=')
+- block:
+  - yum:
+      name:
+        - '@x11'
+        - gnome-classic-session
+        - gnome-terminal
+        - dejavu-sans-mono-fonts
+        - nautilus-open-terminal
+      state: present
+  - yum:
+      name: vlgothic-p-fonts
+      state: present
+    when: locale == 'ja_JP.UTF-8'
+  when: ansible_distribution_major_version is version('8', '<')
+- command: systemctl get-default
+  register: _command
+  changed_when: no
+- command: systemctl set-default graphical.target
+  when: _command.stdout != 'graphical.target'
+- command: systemctl list-units --type target
+  register: _command
+  changed_when: no
+- command: systemctl isolate graphical.target
+  when: _command.stdout is not search('graphical.target')
