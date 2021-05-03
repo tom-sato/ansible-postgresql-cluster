@@ -254,6 +254,7 @@
         dest: /etc/pgpool-II/pool_passwd
         owner: postgres
         group: postgres
+        mode: 0600
       when: not _stat.stat.exists
     - command: 'grep -E ^postgres: /etc/pgpool-II/pool_passwd'
       register: _command
