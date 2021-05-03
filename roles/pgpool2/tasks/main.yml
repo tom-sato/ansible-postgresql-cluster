@@ -18,7 +18,12 @@
 - lineinfile:
     path: /etc/sysconfig/pgpool
     regexp: ^OPTS=
-    line: OPTS="-n -D"
+    line: |
+      {% if pgpool2_version is version('4.0', '>=') %}
+      OPTS="-k /var/lib/pgsql/.pgpoolkey -n -D"
+      {% else %}
+      OPTS="-n -D"
+      {% endif %}
 - blockinfile:
     path: /etc/rsyslog.d/pgpool.conf
     block: |
