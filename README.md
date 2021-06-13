@@ -1,7 +1,7 @@
 Ansible Playbooks for PostgreSQL Clusters
 =========================================
 
-Ansible playbooks that set up various [PostgreSQL](https://www.postgresql.org/) clusters for testing.
+Ansible playbooks that set up various [PostgreSQL](https://www.postgresql.org/) clusters for testing, such as streaming replication, Pgpool-II, Pacemaker and DRBD.
 
 Requirements
 ------------
