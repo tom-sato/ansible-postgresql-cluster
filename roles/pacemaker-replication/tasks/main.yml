@@ -49,7 +49,7 @@
       register: _command
       changed_when: _command.rc == 0
       failed_when: _command.rc != 0 and _command is not search('already exists')
-    - command: diff {{ _tempfile.path }}/original.xml {{ _tempfile.path }}/new.xml
+    - command: diff {{ _tempfile.path }}/tmp-cib.xml.deltasrc {{ _tempfile.path }}/tmp-cib.xml
       register: _command
       changed_when: false
       failed_when: false
