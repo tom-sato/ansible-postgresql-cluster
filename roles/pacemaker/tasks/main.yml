@@ -19,11 +19,6 @@
     enablerepo: '{{ _repo | default(omit) }}'
     state: latest
   when: pacemaker_use_softdog
-- lineinfile:
-    path: /etc/hosts
-    regexp: ^(127\.0\.0\.1\s+{{ ansible_hostname }}.*)
-    line: '#\1'
-    backrefs: yes
 - command: passwd -S hacluster
   register: _command
   changed_when: false

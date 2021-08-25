@@ -1,4 +1,9 @@
 ---
+- lineinfile:
+    path: /etc/hosts
+    regexp: ^(127\.0\.0\.1\s+{{ ansible_hostname }}.*)
+    line: '#\1'
+    backrefs: yes
 - blockinfile:
     path: /etc/hosts
     block: |
