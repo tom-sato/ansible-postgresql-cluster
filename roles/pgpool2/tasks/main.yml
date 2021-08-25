@@ -218,7 +218,7 @@
       {% for item in groups.all %}
       heartbeat_hostname{{ loop.index0 }} = '{{ item }}'
       heartbeat_port{{ loop.index0 }} = {{ pgpool2_heartbeat_port }}
-      heartbeat_device{{ loop.index0 }} = '{{ public_interface }}'
+      heartbeat_device{{ loop.index0 }} = ''
       {% endfor %}
       {% else %}
       wd_heartbeat_port = {{ pgpool2_heartbeat_port }}
