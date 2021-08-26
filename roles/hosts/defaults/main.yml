@@ -1,2 +1,2 @@
 ---
-public_interface: eth1
+public_interface: "{{ (ansible_distribution == 'CentOS') | ternary('eth1', 'enp0s8') }}"

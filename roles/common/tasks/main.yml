@@ -1,4 +1,4 @@
 ---
 - fail:
-    msg: RedHat/CentOS version earlier than 7 not supported
-  when: ansible_distribution not in ['RedHat', 'CentOS'] or ansible_distribution_major_version is version('7', '<')
+    msg: Other than CentOS/AlmaLinux, or version earlier than 7 not supported
+  when: ansible_distribution not in ['CentOS', 'AlmaLinux'] or ansible_distribution_major_version is version('7', '<')
