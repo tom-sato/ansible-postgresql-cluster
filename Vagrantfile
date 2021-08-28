@@ -1,3 +1,5 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
 Vagrant.configure("2") do |config|
   playbook = ENV["PLAYBOOK"] ? ENV["PLAYBOOK"] : "postgresql"
   num_nodes = (playbook == "pacemaker-drbd") ? 2 : (ENV["NUM_NODES"] ? [ENV["NUM_NODES"].to_i, 1].max : 3)
@@ -13,9 +15,11 @@ Vagrant.configure("2") do |config|
     config.vm.define "node-#{i}" do |node|
       node.vm.hostname = "node-#{i}.example.com"
       node.vm.network "private_network", type: "dhcp"
+      #node.vm.network "private_network", ip: "172.28.128.#{100 + i}"
       node.vm.provider "virtualbox" do |vb|
         #vb.gui = true
         #vb.memory = 1024
+        #vb.cpu = 1
         if playbook == "pacemaker-drbd"
           disk = "disk-#{i}.vmdk"
           unless File.exists?(disk)
@@ -28,6 +32,21 @@ Vagrant.configure("2") do |config|
         node.vm.provision "ansible" do |ansible|
           ansible.playbook = "#{playbook}.yml"
           ansible.limit = "all"
+          ansible.extra_vars = {
+            #ansible_python_interpreter: "/usr/libexec/platform-python",
+            #postgresql_version: "13",
+            #postgresql_extra_config_parameters: <<~EOS,
+            #  max_connections = 100
+            #  shared_buffers = 128MB
+            #EOS
+            #postgresql_setup_stage: "write_recovery_conf",
+            #pgpool2_version: "4.2",
+            #pgpool2_delegate_ip: "172.28.128.201",
+            #pgpool2_extra_config_parameters: <<~EOS,
+            #  num_init_children = 32
+            #  max_pool = 4
+            #EOS
+          }
         end
       end
     end
