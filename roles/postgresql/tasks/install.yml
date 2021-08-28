@@ -1,0 +1,19 @@
+---
+- yum:
+    name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}/pgdg-redhat-repo-latest.noarch.rpm
+    state: present
+- block:
+    - command: dnf -y module list --disabled postgresql
+      args:
+        warn: no
+      register: _command
+      changed_when: false
+      failed_when: false
+    - command: dnf -y module disable postgresql
+      args:
+        warn: no
+      when: _command.rc != 0
+  when: ansible_distribution_major_version is version('8', '>=')
+- yum:
+    name: postgresql{{ postgresql_version | regex_replace('\.') }}-server
+    state: latest

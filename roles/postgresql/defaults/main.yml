@@ -12,7 +12,7 @@ postgresql_extra_hba_records: |
   host all all samenet {{ postgresql_auth_method }}
   host replication all samenet {{ postgresql_auth_method }}
 postgresql_control_as_service: yes
-postgresql_setup_stage: write_recovery_conf	# initdb, basebackup, write_recovery_conf
+postgresql_setup_stage: write_recovery_conf	# install, initdb, basebackup, write_recovery_conf
 postgresql_primary_hostname: '{{ groups.all[0] }}'
 postgresql_extra_recovery_config_parameters: ''
 postgresql_use_rewind: no

@@ -98,7 +98,7 @@ Sets up PostgreSQL servers.
 * `postgresql_extra_config_parameters` - Specifies extra parameters in `postgresql.conf`. The default is an empty string.
 * `postgresql_extra_hba_records` - Specifies extra records in `pg_hba.conf`. The default is to use the authentication method specified by `postgresql_auth_method` for connections from the same network.
 * `postgresql_control_as_service` - Specifies whether to control as a service. The default is `yes`.
-* `postgresql_setup_stage` - Specifies which stage to set up. `initdb` creates a database cluster, `basebackup` takes a base backup, `write_recovery_conf` writes settings for the standby server. The default is `write_recovery_conf`.
+* `postgresql_setup_stage` - Specifies which stage to set up. `install` installs PostgreSQL, `initdb` creates a database cluster, `basebackup` takes a base backup, `write_recovery_conf` writes settings for the standby server. The default is `write_recovery_conf`.
 * `postgresql_primary_hostname` - Specifies the host name of the primary server. The default is the host name of the first node of all.
 * `postgresql_extra_recovery_config_parameters` - Specifies extra parameters for the standby server in `postgresql.auto.conf` for PostgreSQL 12 or later, and in `recovery.conf` otherwise. The default is an empty string.
 * `postgresql_use_rewind` - Specifies whether to use the `pg_rewind` command when following the primary server with Pgpool-II. The default is `no`.
