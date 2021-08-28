@@ -1,4 +1,5 @@
 ---
+# Corosync doesn't work with hostname bound to 127.0.0.1
 - lineinfile:
     path: /etc/hosts
     regexp: ^(127\.0\.0\.1\s+{{ ansible_hostname }}.*)
