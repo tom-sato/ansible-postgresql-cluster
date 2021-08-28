@@ -11,6 +11,9 @@ Vagrant.configure("2") do |config|
     config.proxy.no_proxy = "localhost,127.0.0.1," + (1..num_nodes).map{|i| "node-%d" % i}.join(",")
   end
   config.vm.box = box
+  # shared folder can't be used in WSL
+  # see https://github.com/hashicorp/vagrant/issues/10576
+  config.vm.synced_folder ".", "/vagrant", disabled: true
   (1..num_nodes).each do |i|
     config.vm.define "node-#{i}" do |node|
       node.vm.hostname = "node-#{i}.example.com"
