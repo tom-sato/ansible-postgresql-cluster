@@ -60,6 +60,7 @@ The following playbooks are available:
 * `pacemaker-drbd.yml` - Sets up a PostgreSQL cluster with [Pacemaker](https://clusterlabs.org/pacemaker/) and [DRBD](https://www.linbit.com/drbd/).
 * `pacemaker-replication.yml` - Sets up a PostgreSQL cluster with Pacemaker and streaming replication.
 * `pacemaker-paf.yml` - Sets up a PostgreSQL cluster with Pacemaker and streaming replication using [PAF](https://clusterlabs.github.io/PAF/).
+* `lifekeeper-datakeeper.yml` - Sets up a PostgreSQL cluster with LifeKeeper and DataKeeper.
 * `repmgr.yml` - Sets up a PostgreSQL cluster with [repmgr](https://repmgr.org/). (experimental)
 
 Roles
@@ -159,6 +160,32 @@ Creates resources on the Pacemaker cluster.
 * `pacemaker_virtual_hostname` - Specifies the host name of the virtual IP address. The default is `vip-1`.
 * `pacemaker_pgsql_rep_mode` - Specifies the replication mode in the `pacemaker-replication` role. Valid values are `async` (the default), `sync`, and `slave`.
 * `pacemaker_pgsql_replication_slot_name` - Specifies the slot name when using the replication slot in the `pacemaker-replication` role. The default is `{{ pacemaker_resource_prefix + 'slot' }}`.
+
+### `lifekeeper`
+
+Set up a LifeKeeper cluster.
+
+* `lifekeeper_media_file` - Specifies the media file path. The dafault is `/path/to/LKL_V951_100620.iso`.
+* `lifekeeper_license_file` - Specifies the license file path. The default is `/path/to/evalkeys-60day.txt`.
+* `lifekeeper_recovery_kits` - Specifies the recovery kits to install. The default is empty. Valid values are `steeleye-lkPGSQL` (PostgreSQL Recovery Kit), `steeleye-lkDR` (DataKeeper), and so on.
+
+### `lifekeeper-*`
+
+Creates resources on the LifeKeeper cluster.
+
+* `lifekeeper_resource_prefix` - Specifies the prefix to be added to the beginning of the resource name. The default is `my_`.
+* `lifekeeper_virtual_ip` - Specifies the virtual IP address. The default is an unused IP address in all nodes.
+* `lifekeeper_virtual_hostname` - Specifies the host name of the virtual IP address. The default is `vip-1`.
+* `lifekeeper_pinglist` - Specifies ping list separated by commas. The default is the IP address of the default gateway.
+
+### `datakeeper`
+
+Sets up a DataKeeper resource on the LifeKeeper cluster.
+
+* `datakeeper_disk` - Specifies the disk device path. The default is `/dev/sdb1`.
+* `datakeeper_fstype` - Specifies the filesystem type. The default is `xfs`.
+* `datakeeper_mount_directory` - Specifies the mount directory path. The default is `/mnt/mirror`.
+* `datakeeper_source_hostname` - Specifies the host name of the source server. The default is the host name of the first node of all.
 
 ### `repmgr`
 

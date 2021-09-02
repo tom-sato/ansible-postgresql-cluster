@@ -1,0 +1,65 @@
+---
+- stat:
+    path: '{{ datakeeper_disk }}'
+  register: _stat
+- parted:
+    device: "{{ datakeeper_disk | regex_replace('\\d+$') }}"
+    number: "{{ datakeeper_disk | regex_search('\\d+$') }}"
+    state: present
+    label: gpt
+  when: not _stat.stat.exists
+- block:
+  - set_fact:
+      _dk_tag: "{{ lifekeeper_resource_prefix }}datarep-{{ datakeeper_mount_directory | basename }}"
+      _fs_tag: "{{ lifekeeper_resource_prefix }}{{ datakeeper_mount_directory }}"
+  - command: /opt/LifeKeeper/bin/lkcli resource info --tag {{ _dk_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource create dk
+      --tag {{ _dk_tag }}
+      --mode synchronous
+      --hierarchy new
+      --device {{ datakeeper_disk }}
+      --fstype {{ datakeeper_fstype }}
+      --mount_point {{ datakeeper_mount_directory }}
+      --fstag {{ _fs_tag }}
+    when: "_command.stdout is not search('tag: ' + _dk_tag)"
+  - command: /opt/LifeKeeper/bin/lkcli resource eqv --tag {{ _dk_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource extend dk
+      --tag {{ _dk_tag }}
+      --dest {{ hostvars[item].ansible_fqdn }}
+      --mode synchronous
+      --laddr {{ hostvars[ansible_hostname]['ansible_' + public_interface].ipv4.address }}
+      --raddr {{ hostvars[item]['ansible_' + public_interface].ipv4.address }}
+    when: _command.stdout is not search(hostvars[item].ansible_fqdn)
+    with_items: '{{ groups.all | difference([ansible_hostname]) }}'
+  - command: /opt/LifeKeeper/bin/lkcli resource eqv --tag {{ _fs_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource extend fs
+      --tag {{ _fs_tag }}
+      --dest {{ hostvars[item].ansible_fqdn }}
+    when: _command.stdout is not search(hostvars[item].ansible_fqdn)
+    with_items: '{{ groups.all | difference([ansible_hostname]) }}'
+  - command: /opt/LifeKeeper/bin/lkcli mirror status --tag {{ _dk_tag }}
+    register: _command
+    changed_when: false
+  - block:
+    - command: /opt/LifeKeeper/bin/lkcli mirror force --tag {{ _dk_tag }}
+    - command: /opt/LifeKeeper/bin/lkcli mirror fullresync --tag {{ _dk_tag }}
+    - command: /opt/LifeKeeper/bin/lkcli mirror status --tag {{ _dk_tag }}
+      register: _command_retry
+      until: "_command_retry.stdout is search('Status: Fully Operational')"
+      retries: 30
+      delay: 10
+      changed_when: false
+    when: "_command is search('Status: Out of Sync')"
+  when: ansible_hostname == datakeeper_source_hostname

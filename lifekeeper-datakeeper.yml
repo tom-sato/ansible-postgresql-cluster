@@ -1,0 +1,20 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    lifekeeper_recovery_kits:
+      - steeleye-lkPGSQL
+      - steeleye-lkDR
+    postgresql_data_directory: '{{ datakeeper_mount_directory }}/pgsql/data'
+    postgresql_extra_config_parameters: |
+      restart_after_crash = off
+    postgresql_control_as_service: no
+    postgresql_setup_stage: initdb
+  roles:
+    - common
+    - hosts
+    - locale
+    - lifekeeper
+    - datakeeper
+    - postgresql
+    - lifekeeper-datakeeper

@@ -21,9 +21,9 @@ Vagrant.configure("2") do |config|
       #node.vm.network "private_network", ip: "172.28.128.#{100 + i}"
       node.vm.provider "virtualbox" do |vb|
         #vb.gui = true
-        #vb.memory = 1024
+        vb.memory = 1024
         #vb.cpu = 1
-        if playbook == "pacemaker-drbd"
+        if ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook)
           disk = "disk-#{i}.vmdk"
           unless File.exists?(disk)
             vb.customize ["createhd", "--filename", disk, "--size", 10 * 1024, "--format", "VMDK"]

@@ -1,0 +1,6 @@
+---
+lifekeeper_resource_prefix: my_
+datakeeper_disk: /dev/sdb1
+datakeeper_fstype: xfs
+datakeeper_mount_directory: /mnt/mirror
+datakeeper_source_hostname: '{{ groups.all[0] }}'

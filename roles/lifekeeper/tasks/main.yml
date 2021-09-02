@@ -1,0 +1,86 @@
+---
+- selinux:
+    state: disabled
+  register: _selinux
+- reboot:
+  when: _selinux.reboot_required
+- command: rpm -q steeleye-lk {{ lifekeeper_recovery_kits | join(' ') }}
+  args:
+    warn: no
+  register: _command
+  changed_when: false
+  failed_when: false
+- block:
+  - copy:
+      src: '{{ lifekeeper_media_file }}'
+      dest: /tmp/lifekeeper/
+      mode: 0600
+  - mount:
+      path: /tmp/lifekeeper/LKL
+      src: /tmp/lifekeeper/{{ lifekeeper_media_file | basename }}
+      state: mounted
+      fstype: iso9660
+      opts: loop
+  - find:
+      paths: /tmp/lifekeeper/LKL
+      patterns: sps_*.img
+    register: _find
+  - mount:
+      path: /tmp/lifekeeper/sps
+      src: '{{ _find.files[0].path }}'
+      state: mounted
+      fstype: iso9660
+      opts: loop
+  - blockinfile:
+      path: /tmp/lifekeeper/LKCONF
+      block: |
+        LKCONF_INSTALL_JRE="y"
+        LKCONF_SELONLY="y"
+        LKCONF_AUTH="y"
+        LKCONF_LKUSER_lkadmin="root vagrant"
+        {% for item in lifekeeper_recovery_kits %}
+        LKCONF_{{ item | regex_replace('-', '_') }}="y"
+        {% endfor %}
+      mode: 0644
+      create: yes
+  - shell: script -e -c '/tmp/lifekeeper/sps/setup -f /tmp/lifekeeper/LKCONF -q y' /dev/null
+  - mount:
+      path: '{{ item }}'
+      state: unmounted
+    with_items:
+      - /tmp/lifekeeper/sps
+      - /tmp/lifekeeper/LKL
+  - file:
+      path: /tmp/lifekeeper
+      state: absent
+  when: _command.rc != 0
+- shell: ls /var/LifeKeeper/license/*.lic
+  register: _shell
+  changed_when: false
+  failed_when: false
+- block:
+  - copy:
+      src: '{{ lifekeeper_license_file }}'
+      dest: /tmp/
+      mode: 0600
+  - command: /opt/LifeKeeper/bin/lkcli license --file /tmp/{{ lifekeeper_license_file | basename }}
+  - file:
+      path: /tmp/{{ lifekeeper_license_file | basename }}
+      state: absent
+  when: _shell.rc != 0
+- service:
+    name: lifekeeper
+    state: started
+- command: /opt/LifeKeeper/bin/lkcli status -q
+  register: _command
+  until: _command.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+- command: >
+    /opt/LifeKeeper/bin/lkcli commpath create
+    --laddr {{ hostvars[ansible_hostname]['ansible_' + public_interface].ipv4.address }}
+    --raddr {{ hostvars[item]['ansible_' + public_interface].ipv4.address }}
+    --dest {{ hostvars[item].ansible_fqdn }}
+  when: _command.stdout is not search(hostvars[item]['ansible_' + public_interface].ipv4.address)
+  with_items: '{{ groups.all | difference([ansible_hostname]) }}'

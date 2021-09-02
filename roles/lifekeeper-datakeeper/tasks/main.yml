@@ -1,0 +1,79 @@
+---
+- lineinfile:
+    path: /etc/hosts
+    line: "{{ lifekeeper_virtual_ip }} {{ lifekeeper_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ lifekeeper_virtual_hostname }}"
+- lineinfile:
+    path: /etc/default/LifeKeeper
+    regexp: ^NOBCASTPING=
+    line: NOBCASTPING=1
+- block:
+  - set_fact:
+      _ip_tag: "{{ lifekeeper_resource_prefix }}ip-{{ lifekeeper_virtual_ip }}"
+  - command: /opt/LifeKeeper/bin/lkcli resource info --tag {{ _ip_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource create ip
+      --tag {{ _ip_tag }}
+      --ipaddr {{ lifekeeper_virtual_ip }}
+    when: "_command.stdout is not search('tag: ' + _ip_tag)"
+  - command: /opt/LifeKeeper/bin/lkcli resource eqv --tag {{ _ip_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource extend ip
+      --tag {{ _ip_tag }}
+      --dest {{ hostvars[item].ansible_fqdn }}
+    when: _command.stdout is not search(hostvars[item].ansible_fqdn)
+    with_items: '{{ groups.all | difference([ansible_hostname]) }}'
+  - command: /opt/LifeKeeper/bin/lkcli resource info --tag {{ _ip_tag }}
+    changed_when: false
+    delegate_to: '{{ item }}'
+    with_items: '{{ groups.all }}'
+    register: _command
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource config ip
+      --tag {{ _ip_tag }}
+      --pinglist {{ lifekeeper_pinglist }}
+    delegate_to: '{{ item[0] }}'
+    when: "item[1] is not search('pinglist: ' + lifekeeper_pinglist)"
+    with_together:
+      - "{{ _command.results | map(attribute='item') | list }}"
+      - "{{ _command.results | map(attribute='stdout') | list }}"
+  - set_fact:
+      _pgsql_tag: "{{ lifekeeper_resource_prefix }}pgsql-{{ postgresql_port }}"
+  - command: /opt/LifeKeeper/bin/lkcli resource info --tag {{ _pgsql_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource create pgsql
+      --tag {{ _pgsql_tag }}
+      --datadir {{ postgresql_data_directory }}
+      --port {{ postgresql_port }}
+      --socket /var/run/postgresql/.s.PGSQL.{{ postgresql_port }}
+      --dbuser postgres
+      --logfile /tmp/pgsql-{{ postgresql_port }}.lk.log
+      --exepath /usr/pgsql-{{ postgresql_version }}/bin
+    when: "_command.stdout is not search('tag: ' + _pgsql_tag)"
+  - command: /opt/LifeKeeper/bin/lkcli resource eqv --tag {{ _pgsql_tag }}
+    register: _command
+    changed_when: false
+    failed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli resource extend pgsql
+      --tag {{ _pgsql_tag }}
+      --dest {{ hostvars[item].ansible_fqdn }}
+    when: _command.stdout is not search(hostvars[item].ansible_fqdn)
+    with_items: '{{ groups.all | difference([ansible_hostname]) }}'
+  - command: /opt/LifeKeeper/bin/lkcli status -q -r {{ _pgsql_tag }}
+    register: _command
+    changed_when: false
+  - command: >
+      /opt/LifeKeeper/bin/lkcli dependency create
+      --parent {{ _pgsql_tag }}
+      --child {{ _ip_tag }}
+    when: _command.stdout is not search(_ip_tag)
+  when: ansible_hostname == datakeeper_source_hostname
