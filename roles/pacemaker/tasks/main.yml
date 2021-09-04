@@ -1,9 +1,4 @@
 ---
-- fail:
-    msg: softdog not supported on CentOS/AlmaLinux version later than 7
-  when:
-    - pacemaker_use_softdog
-    - ansible_distribution_major_version is version('7', '>')
 - set_fact:
     _repo: ha
   when: ansible_distribution_major_version is version('8', '>=')
