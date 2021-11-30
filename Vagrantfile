@@ -23,6 +23,8 @@ Vagrant.configure("2") do |config|
         #vb.gui = true
         vb.memory = 1024
         #vb.cpu = 1
+        vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
+        vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
         if ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook)
           disk = "disk-#{i}.vmdk"
           unless File.exists?(disk)
