@@ -15,6 +15,9 @@
       - kmod-drbd{{ drbd_version | regex_replace('\.') }}
       - drbd{{ drbd_version | regex_replace('\.') }}-utils
     state: latest
+  register: _yum
+- reboot:
+  when: _yum.changed
 - stat:
     path: '{{ drbd_disk }}'
   register: _stat
