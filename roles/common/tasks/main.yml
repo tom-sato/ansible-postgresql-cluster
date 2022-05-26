@@ -2,3 +2,6 @@
 - fail:
     msg: Other than RHEL clone version 7 or later not supported
   when: ansible_distribution not in ['CentOS', 'Rocky', 'AlmaLinux', 'OracleLinux'] or ansible_distribution_major_version is version('7', '<')
+- yum:
+    name: ca-certificates
+    state: latest
