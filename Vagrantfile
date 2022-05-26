@@ -30,7 +30,11 @@ Vagrant.configure("2") do |config|
           unless File.exists?(disk)
             vb.customize ["createhd", "--filename", disk, "--size", 10 * 1024, "--format", "VMDK"]
           end
-          vb.customize ["storageattach", :id, "--storagectl", "IDE", "--port", 1, "--device", 0, "--type", "hdd", "--medium", disk]
+          storagectl = "IDE"
+          if ["almalinux/8", "oraclelinux/8"].include?(box)
+            storagectl = "SATA Controller"
+          end
+          vb.customize ["storageattach", :id, "--storagectl", storagectl, "--port", 1, "--device", 0, "--type", "hdd", "--medium", disk]
         end
       end
       if i == num_nodes
