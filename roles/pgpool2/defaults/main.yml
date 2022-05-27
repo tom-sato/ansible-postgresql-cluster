@@ -1,5 +1,5 @@
 ---
-pgpool2_version: 4.2
+pgpool2_version: 4.3
 pgpool2_syslog_facility: LOCAL1
 pgpool2_syslog_file: /var/log/pgpool
 pgpool2_delegate_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
