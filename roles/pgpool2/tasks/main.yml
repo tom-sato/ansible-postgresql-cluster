@@ -10,6 +10,12 @@
 - yum:
     name: "{{ _uri.url }}/{{ _uri.content | regex_findall('pgpool-II-release-.*?\\.rpm', multiline=true) | my_version_sort | last }}"
     state: present
+- replace:
+    path: /etc/yum.repos.d/pgdg-redhat-all.repo
+    after: \[pgdg-common\]
+    before: \[pgdg-common-testing\]
+    regexp: ^(repo_gpgcheck = .+)$
+    replace: \1\nexclude=pgpool*
 - yum:
     name:
       - pgpool-II-pg{{ postgresql_version | regex_replace('\.') }}
