@@ -2,7 +2,6 @@
 - hosts: all
   become: yes
   vars:
-    postgresql_version: 11
     postgresql_extra_config_parameters: |
       restart_after_crash = off
     postgresql_control_as_service: no

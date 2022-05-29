@@ -1,7 +1,4 @@
 ---
-- fail:
-    msg: PostgreSQL resource agent with replication not supported for PostgreSQL version later than 11
-  when: postgresql_version is version('11', '>')
 - lineinfile:
     path: /etc/hosts
     line: "{{ pacemaker_virtual_ip }} {{ pacemaker_virtual_hostname }}{{ ansible_fqdn | regex_replace('^[^\\.]+') }} {{ pacemaker_virtual_hostname }}"
@@ -58,6 +55,12 @@
           become_user: postgres
           delegate_to: '{{ item }}'
           with_items: '{{ groups.all }}'
+        - blockinfile:
+            path: '{{ postgresql_data_directory }}/postgresql.auto.conf'
+            state: absent
+          delegate_to: '{{ item }}'
+          with_items: '{{ groups.all }}'
+          when: postgresql_version is version('12', '>=')
         - command: pcs cluster cib-push {{ _tempfile.path }}/tmp-cib.xml diff-against={{ _tempfile.path }}/tmp-cib.xml.deltasrc
       when: _command.rc != 0
   run_once: true
