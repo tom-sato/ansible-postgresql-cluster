@@ -30,6 +30,7 @@
           rep_mode={{ pacemaker_pgsql_rep_mode }}
           node_list="{{ groups.all | join(' ') }}"
           master_ip={{ pacemaker_virtual_ip }}
+          tmpdir={{ pacemaker_pgsql_tmpdir }}
           replication_slot_name={{ pacemaker_pgsql_replication_slot_name }}
           {% if ansible_distribution_major_version is version('8', '>=') %}
           promotable promoted-max=1 promoted-node-max=1

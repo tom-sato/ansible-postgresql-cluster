@@ -3,4 +3,5 @@ pacemaker_resource_prefix: my_
 pacemaker_virtual_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
 pacemaker_virtual_hostname: vip-1
 pacemaker_pgsql_rep_mode: async
+pacemaker_pgsql_tmpdir: /var/lib/pgsql/{{ postgresql_version }}/tmp
 pacemaker_pgsql_replication_slot_name: "{{ pacemaker_resource_prefix + 'slot' }}"
