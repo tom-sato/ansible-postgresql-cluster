@@ -32,7 +32,7 @@ ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $recovery_hos
 		{% if postgresql_version is version('12', '<') %}
 		standby_mode = on
 		{% endif %}
-		primary_conninfo = 'host=$main_hostname port=$main_port application_name=$recovery_slot_name'
+		primary_conninfo = 'host=$main_hostname port=$main_port application_name=$recovery_hostname'
 		{% if postgresql_setup_stage == 'write_recovery_conf' and postgresql_use_replication_slot %}
 		primary_slot_name = '$recovery_slot_name'
 		{% endif %}

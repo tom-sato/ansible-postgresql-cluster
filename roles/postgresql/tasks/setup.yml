@@ -138,8 +138,6 @@
       when: postgresql_setup_stage == 'write_recovery_conf'
   when: ansible_hostname == postgresql_primary_hostname
 - block:
-    - set_fact:
-        _application_name: "{{ ansible_hostname | regex_replace('-', '_') }}"
     - block:
         - service:
             name: postgresql-{{ postgresql_version }}
@@ -154,7 +152,7 @@
               when: not _stat_postmaster_pid.stat.exists
           when: not postgresql_control_as_service
         - block:
-            - command: psql -c "SELECT 'found' FROM pg_stat_replication WHERE application_name = '{{ _application_name }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+            - command: psql -c "SELECT 'found' FROM pg_stat_replication WHERE application_name = '{{ ansible_hostname }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
               become_user: postgres
               register: _command
               changed_when: false
@@ -177,6 +175,8 @@
       register: _command_pg_basebackup
       when: not _stat_pg_version.stat.exists or (_command.stdout is defined and _command.stdout is not search('found'))
     - block:
+        - set_fact:
+            _slot_name: "{{ ansible_hostname | regex_replace('-', '_') }}"
         - blockinfile:
             path: "{{ postgresql_data_directory }}/{{ (postgresql_version is version('12', '>=')) | ternary('postgresql.auto.conf', 'recovery.conf') }}"
             block: |
@@ -184,9 +184,9 @@
               {% if postgresql_version is version('12', '<') %}
               standby_mode = on
               {% endif %}
-              primary_conninfo = 'host={{ postgresql_primary_hostname }} port={{ postgresql_port }} application_name={{ _application_name }}'
+              primary_conninfo = 'host={{ postgresql_primary_hostname }} port={{ postgresql_port }} application_name={{ ansible_hostname }}'
               {% if postgresql_use_replication_slot %}
-              primary_slot_name = '{{ _application_name }}'
+              primary_slot_name = '{{ _slot_name }}'
               {% endif %}
               {{ postgresql_extra_recovery_config_parameters }}
             owner: postgres
@@ -208,11 +208,11 @@
               when: not _stat.stat.exists
           when: postgresql_version is version('12', '>=')
         - block:
-            - command: psql -c "SELECT 'found' FROM pg_replication_slots WHERE slot_name = '{{ _application_name }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+            - command: psql -c "SELECT 'found' FROM pg_replication_slots WHERE slot_name = '{{ _slot_name }}'" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
               become_user: postgres
               register: _command_psql
               changed_when: false
-            - command: psql -c "SELECT pg_create_physical_replication_slot('{{ _application_name }}')" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
+            - command: psql -c "SELECT pg_create_physical_replication_slot('{{ _slot_name }}')" -h {{ postgresql_primary_hostname }} -p {{ postgresql_port }}
               become_user: postgres
               when: _command_psql.stdout is not search('found')
           when: postgresql_use_replication_slot

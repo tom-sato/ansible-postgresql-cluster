@@ -24,7 +24,7 @@ ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $detached_hos
 	{% if postgresql_use_rewind %}
 	/usr/pgsql-{{ postgresql_version }}/bin/pg_rewind -D $detached_data_directory --source-server="host=$new_main_hostname port=$new_main_port"
 	{% endif %}
-	sed -i -E "s/^(primary_conninfo = ).*/\1'host=$new_main_hostname port=$new_main_port application_name=$detached_slot_name'/" $detached_data_directory/$recovery_config_filename
+	sed -i -E "s/^(primary_conninfo = ).*/\1'host=$new_main_hostname port=$new_main_port application_name=$detached_hostname'/" $detached_data_directory/$recovery_config_filename
 	{% if postgresql_use_replication_slot %}
 	sed -i -E "s/^(primary_slot_name = ).*/\1'$detached_slot_name'/" $detached_data_directory/$recovery_config_filename
 	{% endif %}

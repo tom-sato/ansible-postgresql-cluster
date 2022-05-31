@@ -7,14 +7,13 @@ recovery_data_directory=$3
 main_port=$4
 main_hostname=$(hostname -s)
 lsn_name={{ (postgresql_version is version('10', '>=')) | ternary('lsn', 'location') }}
-recovery_slot_name=${recovery_hostname/-/_}
 echo "recovery 2nd stage starting..."
 ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $recovery_hostname <<-EOF
 	set -e -x
 	/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl start -w -D $recovery_data_directory -l /dev/null
 	i=1
 	while :; do
-		result=\$(psql -c "SELECT 'no_delay' FROM pg_stat_replication WHERE sent_$lsn_name = pg_current_wal_$lsn_name() AND application_name = '$recovery_slot_name'" -h $main_hostname -p $main_port)
+		result=\$(psql -c "SELECT 'no_delay' FROM pg_stat_replication WHERE sent_$lsn_name = pg_current_wal_$lsn_name() AND application_name = '$recovery_hostname'" -h $main_hostname -p $main_port)
 		if echo \$result | grep no_delay; then
 			break
 		fi
