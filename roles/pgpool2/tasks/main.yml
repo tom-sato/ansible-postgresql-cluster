@@ -113,6 +113,7 @@
       {% endif %}
       listen_addresses = '*'
       port = {{ pgpool2_port }}
+      pcp_listen_addresses = '*'
       pcp_port = {{ pgpool2_pcp_port }}
       {% for item in groups.all %}
       backend_hostname{{ loop.index0 }} = '{{ item }}'
