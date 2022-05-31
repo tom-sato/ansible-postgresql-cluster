@@ -194,6 +194,7 @@
             mode: 0600
             create: yes
           notify: postgresql_restart
+          when: not _stat_pg_version.stat.exists or (_command.stdout is defined and _command.stdout is not search('found'))
         - block:
             - stat:
                 path: '{{ postgresql_data_directory }}/standby.signal'
