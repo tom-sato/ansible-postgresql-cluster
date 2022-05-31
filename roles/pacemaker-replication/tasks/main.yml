@@ -44,6 +44,8 @@
           then start {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
         - constraint order demote {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
           then stop {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
+        - constraint location {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          rule role=master \#uname eq {{ postgresql_primary_hostname }}
       register: _command
       changed_when: _command.rc == 0
       failed_when: _command.rc != 0 and _command is not search('already exists')
