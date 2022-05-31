@@ -31,7 +31,9 @@ Vagrant.configure("2") do |config|
             vb.customize ["createhd", "--filename", disk, "--size", 10 * 1024, "--format", "VMDK"]
           end
           storagectl = "IDE"
-          if ["almalinux/8", "oraclelinux/8"].include?(box)
+          if ["rockylinux/8"].include?(box)
+            storagectl = "IDE Controller"
+          elsif ["almalinux/8", "oraclelinux/8"].include?(box)
             storagectl = "SATA Controller"
           end
           vb.customize ["storageattach", :id, "--storagectl", storagectl, "--port", 1, "--device", 0, "--type", "hdd", "--medium", disk]
