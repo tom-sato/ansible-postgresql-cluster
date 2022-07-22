@@ -13,7 +13,5 @@
     postgresql_use_rewind: yes
   roles:
     - common
-    - hosts
-    - locale
     - postgresql
     - pgpool2

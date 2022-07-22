@@ -5,3 +5,5 @@
 - yum:
     name: ca-certificates
     state: latest
+- import_tasks: hosts.yml
+- import_tasks: locale.yml

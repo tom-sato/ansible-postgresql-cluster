@@ -12,8 +12,6 @@
     postgresql_setup_stage: initdb
   roles:
     - common
-    - hosts
-    - locale
     - lifekeeper
     - datakeeper
     - postgresql

@@ -9,8 +9,6 @@
     postgresql_setup_stage: initdb
   roles:
     - common
-    - hosts
-    - locale
     - drbd
     - postgresql
     - pacemaker

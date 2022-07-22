@@ -3,5 +3,3 @@
   become: yes
   roles:
     - common
-    - hosts
-    - locale

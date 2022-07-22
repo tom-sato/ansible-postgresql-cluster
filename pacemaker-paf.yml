@@ -9,8 +9,6 @@
     postgresql_use_replication_slot: no
   roles:
     - common
-    - hosts
-    - locale
     - postgresql
     - pacemaker
     - pacemaker-paf
