@@ -1,0 +1,14 @@
+---
+- yum:
+    name: parted
+    state: present
+- command: parted {{ local_disk | regex_replace('\d+$') }} unit % print free
+  register: _command
+  changed_when: false
+- block:
+    - yum:
+        name: cloud-utils-growpart
+        state: present
+    - command: growpart {{ local_disk | regex_replace('(\d+)$', ' \1') }}
+    - command: xfs_growfs {{ local_disk }}
+  when: _command.stdout_lines[-1] is search('Free Space') and _command.stdout_lines[-1] is not search('0.00%')

@@ -1,0 +1,2 @@
+---
+local_disk: "{{ (ansible_distribution not in ['AlmaLinux', 'OracleLinux']) | ternary('/dev/sda1', '/dev/sda2') }}"

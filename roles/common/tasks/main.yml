@@ -7,3 +7,4 @@
     state: latest
 - import_tasks: hosts.yml
 - import_tasks: locale.yml
+- import_tasks: disksize.yml

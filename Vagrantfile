@@ -19,9 +19,14 @@ Vagrant.configure("2") do |config|
       node.vm.hostname = "node-#{i}.example.com"
       node.vm.network "private_network", type: "dhcp"
       #node.vm.network "private_network", ip: "172.28.128.#{100 + i}"
+      if Vagrant.has_plugin?("vagrant-disksize")
+        # disksize plugin needs patch in WSL 
+        # see https://github.com/sprotheroe/vagrant-disksize/issues/20
+        #node.disksize.size = '10GB'
+      end
       node.vm.provider "virtualbox" do |vb|
         #vb.gui = true
-        vb.memory = 1024
+        #vb.memory = 1024
         #vb.cpus = 1
         vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
         vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
