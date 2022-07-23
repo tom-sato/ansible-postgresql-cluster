@@ -2,13 +2,34 @@
 - yum:
     name: parted
     state: present
-- command: parted {{ local_disk | regex_replace('\d+$') }} unit % print free
+- command: lvs -o vg_name --noheadings {{ local_disk }}
+  register: _command
+  changed_when: false
+  failed_when: false
+- block:
+    - command: pvs -o pv_name -S vg_name={{ _command.stdout | trim }} --noheadings
+      register: _command_pvs
+      changed_when: false
+    - set_fact:
+        _physical_disk: '{{ _command_pvs.stdout | trim }}'
+  when: _command.rc == 0
+- set_fact:
+    _physical_disk: '{{ local_disk }}'
+  when: _command.rc != 0
+- command: parted {{ _physical_disk | regex_replace('\d+$') }} unit % print free
   register: _command
   changed_when: false
 - block:
     - yum:
         name: cloud-utils-growpart
         state: present
-    - command: growpart {{ local_disk | regex_replace('(\d+)$', ' \1') }}
-    - command: xfs_growfs {{ local_disk }}
+    - command: growpart {{ _physical_disk | regex_replace('(\d+)$', ' \1') }}
+    - block:
+        - command: pvresize {{ _physical_disk }}
+        - command: lvextend -l +100%FREE {{ local_disk }}
+      when: _physical_disk != local_disk
+    - command: findmnt -o TARGET -n {{ local_disk }}
+      register: _command_findmnt
+      changed_when: false
+    - command: xfs_growfs {{ _command_findmnt.stdout }}
   when: _command.stdout_lines[-1] is search('Free Space') and _command.stdout_lines[-1] is not search('0.00%')

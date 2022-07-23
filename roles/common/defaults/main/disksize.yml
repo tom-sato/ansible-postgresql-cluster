@@ -1,2 +1,9 @@
 ---
-local_disk: "{{ (ansible_distribution not in ['AlmaLinux', 'OracleLinux']) | ternary('/dev/sda1', '/dev/sda2') }}"
+local_disk: >-
+  {%- if ansible_distribution == 'AlmaLinux' -%}
+  /dev/sda2
+  {%- elif ansible_distribution == 'OracleLinux' -%}
+  /dev/mapper/vg_main-lv_root
+  {%- else -%}
+  /dev/sda1
+  {%- endif -%}
