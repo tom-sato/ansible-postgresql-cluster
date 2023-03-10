@@ -3,7 +3,7 @@
 Vagrant.configure("2") do |config|
   playbook = ENV["PLAYBOOK"] ? ENV["PLAYBOOK"] : "postgresql"
   num_nodes = (playbook == "pacemaker-drbd") ? 2 : (ENV["NUM_NODES"] ? [ENV["NUM_NODES"].to_i, 1].max : 3)
-  box = ENV["BOX"] ? ENV["BOX"] : "centos/8"
+  box = ENV["BOX"] ? ENV["BOX"] : "rockylinux/8"
   if Vagrant.has_plugin?("vagrant-proxyconf") && ENV["PROXY"]
     config.proxy.http = ENV["PROXY"]
     config.proxy.https = ENV["PROXY"]
@@ -50,13 +50,13 @@ Vagrant.configure("2") do |config|
           ansible.limit = "all"
           ansible.extra_vars = {
             #ansible_python_interpreter: "/usr/libexec/platform-python",
-            #postgresql_version: "13",
+            #postgresql_version: "15",
             #postgresql_extra_config_parameters: <<~EOS,
             #  max_connections = 100
             #  shared_buffers = 128MB
             #EOS
             #postgresql_setup_stage: "write_recovery_conf",
-            #pgpool2_version: "4.2",
+            #pgpool2_version: "4.4",
             #pgpool2_delegate_ip: "172.28.128.201",
             #pgpool2_extra_config_parameters: <<~EOS,
             #  num_init_children = 32

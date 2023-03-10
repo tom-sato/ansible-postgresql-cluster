@@ -1,5 +1,5 @@
 ---
-postgresql_version: 14
+postgresql_version: 15
 postgresql_data_directory: /var/lib/pgsql/{{ postgresql_version }}/data
 postgresql_syslog_facility: LOCAL0
 postgresql_syslog_file: /var/log/postgresql-{{ postgresql_version }}
