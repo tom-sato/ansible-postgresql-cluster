@@ -2,7 +2,6 @@
 - shell: curl https://dl.2ndquadrant.com/default/release/get/{{ postgresql_version }}/rpm | bash
   args:
     creates: /etc/yum.repos.d/2ndquadrant-dl-default-release-pg{{ postgresql_version }}.repo
-    warn: no
 - yum:
     name: repmgr{{ postgresql_version | regex_replace('\.') }}
     state: latest

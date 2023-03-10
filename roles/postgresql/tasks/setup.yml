@@ -165,8 +165,6 @@
                   become_user: postgres
                   when: not postgresql_control_as_service
                 - shell: rm -f -r {{ postgresql_data_directory }}/*
-                  args:
-                    warn: no
               when: _command.stdout is not search('found')
           when: postgresql_setup_stage == 'write_recovery_conf'
       when: _stat_pg_version.stat.exists
