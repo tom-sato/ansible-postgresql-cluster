@@ -2,6 +2,8 @@
 - fail:
     msg: Pgpool-II version earlier than 3.6 not supported
   when: pgpool2_version is version('3.6', '<')
+- rpm_key:
+    key: https://www.pgpool.net/yum/RPM-GPG-KEY-PGPOOL2
 - uri:
     url: https://www.pgpool.net/yum/rpms/{{ pgpool2_version }}/redhat/rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}/
     return_content: yes
