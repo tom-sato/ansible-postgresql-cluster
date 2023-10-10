@@ -2,7 +2,7 @@
 pgpool2_version: 4.4
 pgpool2_syslog_facility: LOCAL1
 pgpool2_syslog_file: /var/log/pgpool
-pgpool2_delegate_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
+pgpool2_delegate_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_ip }}"
 pgpool2_delegate_hostname: vip-1
 pgpool2_pcp_port: 9898
 pgpool2_pcp_username: postgres

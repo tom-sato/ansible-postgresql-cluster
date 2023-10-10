@@ -1,5 +1,5 @@
 ---
 lifekeeper_resource_prefix: my_
-lifekeeper_virtual_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_usable }}"
+lifekeeper_virtual_ip: "{{ groups.all | map('extract', hostvars, ['ansible_' + public_interface, 'ipv4', 'address']) | my_next_ip }}"
 lifekeeper_virtual_hostname: vip-1
 lifekeeper_pinglist: '{{ ansible_default_ipv4.gateway }}'
