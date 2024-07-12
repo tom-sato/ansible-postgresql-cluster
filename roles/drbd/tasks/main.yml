@@ -10,7 +10,7 @@
   register: _uri
   changed_when: false
 - yum:
-    name: "{{ _uri.url }}/{{ _uri.content | regex_findall('elrepo-release-.*?\\.rpm', multiline=true) | sort | last }}"
+    name: "{{ _uri.url }}/{{ _uri.content | regex_findall('elrepo-release-.*?\\.rpm', multiline=true) | my_version_sort | last }}"
     state: present
 - yum:
     name:
