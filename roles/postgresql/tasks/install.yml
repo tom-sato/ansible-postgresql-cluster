@@ -12,6 +12,10 @@
     - command: dnf -y module disable postgresql
       when: _command.rc != 0
   when: ansible_distribution_major_version is version('8', '>=')
+# required for libzstd
+- yum:
+    name: epel-release
+  when: postgresql_version is version('15', '>=') and ansible_distribution_major_version is version('7', '<=')
 - yum:
     name: postgresql{{ postgresql_version | regex_replace('\.') }}-server
     state: latest
