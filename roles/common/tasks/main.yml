@@ -7,6 +7,16 @@
     block: |
       nameserver 8.8.8.8
       nameserver 8.8.4.4
+- block:
+    - replace:
+        path: /etc/yum.repos.d/CentOS-Base.repo
+        regexp: ^(mirrorlist=.*)
+        replace: '#\1'
+    - replace:
+        path: /etc/yum.repos.d/CentOS-Base.repo
+        regexp: ^#(baseurl=http://)mirror(\..*)
+        replace: \1vault\2
+  when: ansible_distribution == 'CentOS' and ansible_distribution_major_version is version ('7', '<=')
 - yum:
     name: ca-certificates
     state: latest
