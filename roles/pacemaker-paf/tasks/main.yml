@@ -1,7 +1,7 @@
 ---
 - yum:
     name: resource-agents-paf
-    enablerepo: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('ha', '') }}"
+    enablerepo: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary(ansible_distribution_major_version is version('9', '>=') | ternary('highavailability', 'ha'), '') }}"
     state: latest
 - lineinfile:
     path: /etc/hosts
@@ -71,17 +71,17 @@
           ip={{ pacemaker_virtual_ip }}
           nic={{ public_interface }}
           cidr_netmask=24
-        - resource create {{ pacemaker_resource_prefix }}pgsqlms ocf:heartbeat:pgsqlms
+        - resource create {% if ansible_distribution_major_version is version('9', '>=') %}--future{% endif %} {{ pacemaker_resource_prefix }}pgsqlms ocf:heartbeat:pgsqlms
           bindir=/usr/pgsql-{{ postgresql_version }}/bin
           pgdata={{ postgresql_data_directory }}
           pgport={{ postgresql_port }}
           {% if ansible_distribution_major_version is version('8', '>=') %}
-          promotable notify=true
+          promotable {% if ansible_distribution_major_version is version('9', '>=') %}meta{% endif %} notify=true
           {% else %}
           master notify=true
           {% endif %}
         - constraint colocation add {{ pacemaker_resource_prefix }}ipaddr
-          with master {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
+          with {{ ansible_distribution_major_version is version('9', '>=') | ternary('promoted', 'master') }} {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
         - constraint order promote {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}
           then start {{ pacemaker_resource_prefix }}ipaddr kind=Mandatory symmetrical=false
         - constraint order demote {{ pacemaker_resource_prefix }}pgsqlms-{{ _resource_suffix }}

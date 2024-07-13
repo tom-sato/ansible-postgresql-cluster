@@ -14,8 +14,8 @@
     state: present
 - yum:
     name:
-      - kmod-drbd{{ drbd_version | regex_replace('\.') }}
-      - drbd{{ drbd_version | regex_replace('\.') }}-utils
+      - kmod-drbd{{ drbd_version is version('9.1', '>=') | ternary('9x', drbd_version | regex_replace('\.')) }}
+      - drbd{{ drbd_version is version('9.1', '>=') | ternary('9x', drbd_version | regex_replace('\.')) }}-utils
     state: latest
   register: _yum
 - reboot:
@@ -40,11 +40,13 @@
   failed_when: false
 - command: drbdadm create-md {{ drbd_resource_name }}
   when: _command.rc != 0
-- command: ls -Z /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
-  register: _command
-  changed_when: false
-- command: chcon -t drbd_lock_t /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
-  when: _command.stdout is not search('drbd_lock_t')
+- block:
+    - command: ls -Z /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
+      register: _command
+      changed_when: false
+    - command: chcon -t drbd_lock_t /var/lock/drbd-147-{{ drbd_device | regex_search('\d+$') }}
+      when: _command.stdout is not search('drbd_lock_t')
+  when: drbd_version is version('9.0', '<=')
 - service:
     name: drbd
     state: started
@@ -66,13 +68,10 @@
       register: _command
       changed_when: false
     - block:
+        - command: drbdadm new-current-uuid --clear-bitmap {{ drbd_resource_name }}/0
+          delegate_to: "{{ item }}"
+          with_items: "{{ groups.all | difference([ansible_hostname]) }}"
         - command: drbdadm primary --force {{ drbd_resource_name }}
-        - command: drbdadm dstate {{ drbd_resource_name }}
-          register: _command_retry
-          until: _command_retry.stdout == 'UpToDate/UpToDate'
-          retries: 30
-          delay: 10
-          changed_when: false
       when: _command.stdout != 'UpToDate/UpToDate'
     - filesystem:
         dev: '{{ drbd_device }}'

@@ -2,8 +2,8 @@
 # vi: set ft=ruby :
 Vagrant.configure("2") do |config|
   playbook = ENV["PLAYBOOK"] ? ENV["PLAYBOOK"] : "postgresql"
-  num_nodes = (playbook == "pacemaker-drbd") ? 2 : (ENV["NUM_NODES"] ? [ENV["NUM_NODES"].to_i, 1].max : 3)
-  box = ENV["BOX"] ? ENV["BOX"] : "rockylinux/8"
+  num_nodes = ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook) ? 2 : (ENV["NUM_NODES"] ? [ENV["NUM_NODES"].to_i, 1].max : 3)
+  box = ENV["BOX"] ? ENV["BOX"] : "rockylinux/9"
   if Vagrant.has_plugin?("vagrant-proxyconf") && ENV["PROXY"]
     config.proxy.http = ENV["PROXY"]
     config.proxy.https = ENV["PROXY"]
@@ -30,13 +30,13 @@ Vagrant.configure("2") do |config|
         #vb.cpus = 1
         vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
         vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-        if ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook)
+        if ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook) and i <= 2
           disk = "disk-#{i}.vmdk"
           unless File.exists?(disk)
             vb.customize ["createhd", "--filename", disk, "--size", 10 * 1024, "--format", "VMDK"]
           end
           storagectl = "IDE"
-          if ["rockylinux/8"].include?(box)
+          if ["rockylinux/8", "rockylinux/9"].include?(box)
             storagectl = "IDE Controller"
           elsif ["almalinux/8", "oraclelinux/8"].include?(box)
             storagectl = "SATA Controller"

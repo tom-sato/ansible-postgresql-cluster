@@ -1,6 +1,6 @@
 ---
 - set_fact:
-    _repo: ha
+    _repo: "{{ ansible_distribution_major_version is version('9', '>=') | ternary('highavailability', 'ha') }}"
   when: ansible_distribution_major_version is version('8', '>=')
 - yum:
     name:
@@ -69,7 +69,7 @@
     - command: pcs resource defaults
       register: _command
       changed_when: false
-    - command: pcs resource defaults {{ item.key }}={{ item.value }}
+    - command: pcs resource defaults {% if ansible_distribution_major_version is version('9', '>=') %}update{% endif %} {{ item.key }}={{ item.value }}
       when: "_command.stdout is not search('%s=%s' | format(item.key, item.value))"
       with_dict:
         'resource-stickiness': INFINITY

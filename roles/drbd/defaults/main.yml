@@ -1,5 +1,5 @@
 ---
-drbd_version: 9.0
+drbd_version: "{{ ansible_distribution_major_version is version('9', '>=') | ternary('9.1', '9.0') }}"
 drbd_disk: /dev/sdb1
 drbd_resource_name: my_resource
 drbd_device: /dev/drbd0

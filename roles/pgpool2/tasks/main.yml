@@ -23,6 +23,7 @@
       - pgpool-II-pg{{ postgresql_version | regex_replace('\.') }}
       - pgpool-II-pg{{ postgresql_version | regex_replace('\.') }}-extensions
     state: latest
+    enablerepo: "{{ ansible_distribution_major_version is version('9', '>=') | ternary('crb', '') }}"
 - lineinfile:
     path: /etc/sysconfig/pgpool
     regexp: ^OPTS=
@@ -45,7 +46,7 @@
     state: restarted
   when: _blockinfile.changed
 - lineinfile:
-    path: /etc/logrotate.d/syslog
+    path: /etc/logrotate.d/{{ ansible_distribution_major_version is version('9', '>=') | ternary('rsyslog', 'syslog') }}
     insertbefore: ^{
     line: '{{ pgpool2_syslog_file }}'
 - lineinfile:

@@ -25,7 +25,7 @@
     state: restarted
   when: _blockinfile.changed
 - lineinfile:
-    path: /etc/logrotate.d/syslog
+    path: /etc/logrotate.d/{{ ansible_distribution_major_version is version('9', '>=') | ternary('rsyslog', 'syslog') }}
     insertbefore: ^{
     line: '{{ postgresql_syslog_file }}'
 - lineinfile:

@@ -32,10 +32,10 @@
         _resource_suffix: "{{ (ansible_distribution_major_version is version('8', '>=')) | ternary('clone', 'master') }}"
     - command: pcs -f {{ _tempfile.path }}/tmp-cib.xml {{ item }}
       with_items:
-        - resource create {{ pacemaker_resource_prefix }}drbd ocf:linbit:drbd
+        - resource create {% if ansible_distribution_major_version is version('9', '>=') %}--future{% endif %} {{ pacemaker_resource_prefix }}drbd ocf:linbit:drbd
           drbd_resource={{ drbd_resource_name }}
           {% if ansible_distribution_major_version is version('8', '>=') %}
-          promotable promoted-max=1 promoted-node-max=1
+          promotable {% if ansible_distribution_major_version is version('9', '>=') %}meta{% endif %} promoted-max=1 promoted-node-max=1
           {% else %}
           master master-max=1 master-node-max=1
           {% endif %}
@@ -56,7 +56,7 @@
           pgport={{ postgresql_port }}
           --group {{ pacemaker_resource_prefix }}pgsql-group
         - constraint colocation add {{ pacemaker_resource_prefix }}pgsql-group
-          with master {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
+          with {{ ansible_distribution_major_version is version('9', '>=') | ternary('promoted', 'master') }} {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
         - constraint order promote {{ pacemaker_resource_prefix }}drbd-{{ _resource_suffix }}
           then start {{ pacemaker_resource_prefix }}pgsql-group
       register: _command

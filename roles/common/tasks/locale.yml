@@ -23,8 +23,9 @@
   when: "_command.stdout is not search('System Locale: LANG=' + locale)"
 - command: localectl set-keymap {{ keymap }}
   when: "_command.stdout is not search('VC Keymap: ' + keymap)"
+- package_facts:
 - command: localectl set-x11-keymap {{ x11_keymap_layout }} {{ x11_keymap_model }}
-  when: "_command.stdout is not search('X11 Layout: ' + x11_keymap_layout) or _command.stdout is not search('X11 Model: ' + x11_keymap_model)"
+  when: "(_command.stdout is not search('X11 Layout: ' + x11_keymap_layout) or _command.stdout is not search('X11 Model: ' + x11_keymap_model)) and 'libxkbcommon' in ansible_facts.packages"
 - command: timedatectl status
   register: _command
   changed_when: false

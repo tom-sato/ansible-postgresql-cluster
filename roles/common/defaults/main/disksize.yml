@@ -1,6 +1,8 @@
 ---
 local_disk: >-
-  {%- if ansible_distribution == 'AlmaLinux' -%}
+  {%- if ansible_distribution == 'Rocky' and ansible_distribution_major_version is version('9', '>=')  -%}
+  /dev/sda5
+  {%- elif ansible_distribution == 'AlmaLinux' -%}
   /dev/sda2
   {%- elif ansible_distribution == 'OracleLinux' -%}
   /dev/mapper/vg_main-lv_root

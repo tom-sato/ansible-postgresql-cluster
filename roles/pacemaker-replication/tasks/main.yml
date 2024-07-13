@@ -23,7 +23,7 @@
           ip={{ pacemaker_virtual_ip }}
           nic={{ public_interface }}
           cidr_netmask=24
-        - resource create {{ pacemaker_resource_prefix }}pgsql ocf:heartbeat:pgsql
+        - resource create {% if ansible_distribution_major_version is version('9', '>=') %}--future{% endif %} {{ pacemaker_resource_prefix }}pgsql ocf:heartbeat:pgsql
           pgctl=/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl
           pgdata={{ postgresql_data_directory }}
           pgport={{ postgresql_port }}
@@ -33,19 +33,19 @@
           tmpdir={{ pacemaker_pgsql_tmpdir }}
           replication_slot_name={{ pacemaker_pgsql_replication_slot_name }}
           {% if ansible_distribution_major_version is version('8', '>=') %}
-          promotable promoted-max=1 promoted-node-max=1
+          promotable {% if ansible_distribution_major_version is version('9', '>=') %}meta{% endif %} promoted-max=1 promoted-node-max=1
           {% else %}
           master master-max=1 master-node-max=1
           {% endif %}
           clone-max={{ groups.all | length }} clone-node-max=1 notify=true
         - constraint colocation add {{ pacemaker_resource_prefix }}ipaddr
-          with master {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
+          with {{ ansible_distribution_major_version is version('9', '>=') | ternary('promoted', 'master') }} {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
         - constraint order promote {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
           then start {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
         - constraint order demote {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
           then stop {{ pacemaker_resource_prefix }}ipaddr symmetrical=false
         - constraint location {{ pacemaker_resource_prefix }}pgsql-{{ _resource_suffix }}
-          rule role=master \#uname eq {{ postgresql_primary_hostname }}
+          rule role={{ ansible_distribution_major_version is version('9', '>=') | ternary('promoted', 'master') }} \#uname eq {{ postgresql_primary_hostname }}
       register: _command
       changed_when: _command.rc == 0
       failed_when: _command.rc != 0 and _command is not search('already exists')
