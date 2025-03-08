@@ -22,12 +22,15 @@ Vagrant.configure("2") do |config|
       if Vagrant.has_plugin?("vagrant-disksize")
         # disksize plugin needs patch in WSL 
         # see https://github.com/sprotheroe/vagrant-disksize/issues/20
-        #node.disksize.size = '10GB'
+        #node.disksize.size = "10GB"
       end
       node.vm.provider "virtualbox" do |vb|
         #vb.gui = true
         #vb.memory = 1024
         #vb.cpus = 1
+        if not ["centos/7"].include?(box)
+          vb.customize ["modifyvm", :id, "--firmware", "efi"]
+        end
         vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
         vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
         if ["pacemaker-drbd", "lifekeeper-datakeeper"].include?(playbook) and i <= 2
