@@ -8,10 +8,13 @@ Requirements
 
 The requirements are as follow:
 
-* VirtualBox 6.0.x
-* Vagrant 2.2.x
-* Vagrant box [centos/8](https://app.vagrantup.com/centos/boxes/8) or [centos/7](https://app.vagrantup.com/centos/boxes/7)
-* Ansible 2.9.x
+* VirtualBox 7.1.x
+* Vagrant 2.4.x
+* Vagrant box
+  * [centos/7](https://app.vagrantup.com/centos/boxes/7)
+  * [rockylinux/8](https://app.vagrantup.com/rockylinux/boxes/8)
+  * [rockylinux/9](https://app.vagrantup.com/rockylinux/boxes/9)
+* Ansible 2.10.x
 
 Usage
 -----
