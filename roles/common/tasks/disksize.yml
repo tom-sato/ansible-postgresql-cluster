@@ -16,7 +16,7 @@
 - set_fact:
     _physical_disk: '{{ local_disk }}'
   when: _command.rc != 0
-- command: parted {{ _physical_disk | regex_replace('\d+$') }} unit % print free
+- shell: parted {{ _physical_disk | regex_replace('\d+$') }} unit % print free < /dev/null
   register: _command
   changed_when: false
 - block:
